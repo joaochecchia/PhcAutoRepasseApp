@@ -1,0 +1,67 @@
+# Dependências
+node_modules/
+
+# Expo e Metro
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+
+# Pastas nativas geradas pelo prebuild (configure em app.json, nunca à mão)
+/ios
+/android
+.kotlin/
+
+# Builds gerados (EAS ou local)
+*.apk
+*.aab
+*.ipa
+*.app
+*.dSYM.zip
+
+# Chaves e credenciais de assinatura: nunca no git
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+credentials.json
+
+# Variáveis de ambiente com valores reais (o modelo .env.example entra no git)
+.env
+.env.*
+!.env.example
+
+# TypeScript
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Testes e cobertura
+coverage/
+
+# Editores e sistema
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+*.orig.*
+
+# Claude Code: preferências locais de cada pessoa (as skills em .claude/skills entram no git)
+.claude/settings.local.json
+
+# Saídas de ferramentas de teste no navegador
+.playwright-cli/
+output/
+.vscode/
+
+# Skills de terceiros (baixe de novo pelas fontes em .claude/skills/README.md)
+.claude/skills/expo-*/
+.claude/skills/react-native-best-practices/
