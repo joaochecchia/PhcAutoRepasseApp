@@ -112,12 +112,14 @@ npx expo-doctor
 
 Depois abra a tela no Expo Go ou emulador, em claro e escuro, e confira os estados de carregando, vazio e erro. Diga o que foi verificado no aparelho e o que não foi.
 
+## Login
+
+Resolvido em 10/11/2026 com o **modo app** do backend (cabeçalho `X-PHC-Cliente: app`, tokens no corpo, sessão deslizante de 90 dias, Google com código de uso único e PKCE). Detalhes e limites na skill `phc-app-api`.
+
 ## Pontos em aberto
 
 Decisões que ainda precisam do usuário. Não as presuma resolvidas.
 
-1. **Autenticação no app.** O backend entrega o token só no cookie `PHC_AUTH`, mas aceita `Authorization: Bearer`. O caminho está descrito na skill `phc-app-api` e precisa ser validado num teste real antes de construir as telas de login.
-2. **Chat em tempo real.** O WebSocket do backend só aceita as origens configuradas em `APP_CORS_ALLOWED_ORIGINS`. Pode ser preciso ajustar o backend para o app.
-3. **Login com Google.** No site é um redirecionamento do navegador; no app precisa de fluxo próprio.
-4. **Pagamento com cartão.** A tokenização e o 3DS da Cielo usam scripts de navegador; no app provavelmente rodam numa WebView.
-5. **Assinatura de planos nas lojas.** Apple e Google têm regras sobre venda de serviços digitais dentro do app. Avaliar antes de publicar.
+1. **Chat em tempo real.** O WebSocket do backend só aceita as origens configuradas em `APP_CORS_ALLOWED_ORIGINS`. Pode ser preciso ajustar o backend para o app.
+2. **Pagamento com cartão.** A tokenização e o 3DS da Cielo usam scripts de navegador; no app provavelmente rodam numa WebView.
+3. **Assinatura de planos nas lojas.** Apple e Google têm regras sobre venda de serviços digitais dentro do app. Avaliar antes de publicar.

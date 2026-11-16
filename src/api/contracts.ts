@@ -98,6 +98,22 @@ export type AdPhoto = {
   url: string;
 };
 
+export type UserProfile = {
+  id: string;
+  tipoPessoa: 'PF' | 'PJ';
+  nome: string;
+  email: string;
+  telefone: string;
+  possuiSenhaLocal: boolean;
+  razaoSocial?: string | null;
+  cpf?: string | null;
+  dataNascimento?: string | null;
+  cnpj?: string | null;
+  endereco?: { cep: string; cidade: string; bairro: string; rua: string; numero?: string | null; complemento?: string | null; uf: string } | null;
+};
+
+export type AdContactChannels = { whatsapp: boolean; chat: boolean };
+
 export type PublicProfile = {
   id: string;
   nome: string;

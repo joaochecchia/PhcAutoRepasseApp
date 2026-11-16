@@ -1,5 +1,6 @@
-import { getJson } from './client';
+import { getJson, request } from './client';
 import type {
+  AdContactChannels,
   AdDetail,
   AdPhoto,
   HomeAdsResponse,
@@ -55,6 +56,16 @@ export function fetchAdPhotos(id: string, signal?: AbortSignal) {
 
 export function fetchPublicProfile(id: string, signal?: AbortSignal) {
   return getJson<PublicProfile>(`/perfis/${encodeURIComponent(id)}`, undefined, { signal });
+}
+
+/** Canais que o anúncio oferece (público; não revela o número). */
+export function fetchContactChannels(id: string, signal?: AbortSignal) {
+  return getJson<AdContactChannels>(`/anuncios/${encodeURIComponent(id)}/contato/canais`, undefined, { signal });
+}
+
+/** Link do WhatsApp do anunciante; exige login (o backend registra o contato). */
+export function requestWhatsappContact(id: string) {
+  return request<{ url: string }>(`/anuncios/${encodeURIComponent(id)}/contato/whatsapp`, { method: 'POST', auth: true });
 }
 
 export function fetchStatus(signal?: AbortSignal) {

@@ -29,26 +29,24 @@ Ao portar uma chamada, leia a função no `backend.ts` do site e mantenha caminh
 
 Vem de `EXPO_PUBLIC_API_URL` (tabela em `AGENTS.md`). Monte `${EXPO_PUBLIC_API_URL}/api/v1`. O WebSocket do chat é a mesma origem com `ws`/`wss` em `/api/v1/chat/ws`. Fotos e mídias chegam como caminhos relativos e precisam da mesma origem na frente.
 
-## Autenticação: o que o servidor faz hoje
+## Autenticação: modo app (implementado)
 
-Fatos conferidos no código do backend:
+O backend tem um **modo app**, aprovado pelo usuário em 10/11/2026: todo pedido do app leva `X-PHC-Cliente: app` (`ClienteApp` no backend). Nesse modo:
 
-- O login (`POST /autenticacao/login`) responde `AUTENTICADO` ou `SEGUNDO_FATOR_NECESSARIO` (HTTP 202, com `challengeId`). O 2FA conclui em `POST /autenticacao/2fa/verificar`.
-- O token de acesso (JWT, 15 min) **não vem no corpo**: vem só no cookie `PHC_AUTH`. O refresh também é cookie.
-- O servidor aceita o mesmo JWT em `Authorization: Bearer <token>`.
-- Requisição com Bearer **não exige CSRF**. Sem Bearer (login, 2FA, refresh), `POST/PUT/PATCH/DELETE` exigem o cookie `XSRF-TOKEN` e o cabeçalho `X-XSRF-TOKEN` iguais.
-- `POST /usuarios/refresh` renova pelo cookie de refresh; 409 significa que outra renovação acabou de acontecer, basta esperar e seguir.
-- `confiarNesteDispositivo: true` no 2FA grava um cookie de dispositivo que dispensa o código por 30 dias.
+- **Sem cookies e sem CSRF.** Os tokens vêm no corpo (`tokens: { accessToken, accessExpiresIn, refreshToken, refreshExpiresIn, dispositivo? }`). O cabeçalho não está no CORS, então outra página não consegue imitá-lo. Cookies enviados junto são ignorados.
+- **Login:** `POST /autenticacao/login` com `{ email, senha, manterConectado: true, dispositivo }`. Responde `AUTENTICADO` com tokens ou `SEGUNDO_FATOR_NECESSARIO` (202, `challengeId`).
+- **2FA:** `POST /autenticacao/2fa/verificar` com `{ challengeId, codigo, confiarNesteDispositivo }`. Se confiar, `tokens.dispositivo` volta e é guardado: dispensa o código por 30 dias. O User-Agent precisa ser o mesmo do login (o backend confere).
+- **Sempre conectado:** a sessão do app é deslizante. Cada `POST /usuarios/refresh` com `{ refreshToken }` troca o refresh e empurra o prazo para 90 dias (`REFRESH_TOKEN_APP_TTL_SECONDS`). Só cai ao sair, trocar a senha ou ficar 90 dias sem abrir o app. O refresh é de uso único: nunca renove duas vezes em paralelo.
+- **Sair:** `POST /usuarios/logout` com `{ refreshToken }`.
+- **Google:** o app abre `GET /oauth2/authorization/google?app=1&retorno=<url do app>&desafio=<PKCE S256>` no navegador do sistema. O backend volta para `retorno` com `?codigo=` (conta existente, 60 s, uso único), `?social_token=` (conta nova) ou `?erro=`. O código vira sessão em `POST /autenticacao/social/troca` com `{ codigo, verificador }`. O cadastro social do app usa `POST /autenticacao/social/cadastro` com `verificador`. O `retorno` precisa estar em `OAUTH2_APP_REDIRECTS` (padrão `phcauto://auth`; `exp://` só em desenvolvimento).
 
-## Autenticação: caminho no app
+No app: `src/api/client.ts` (cabeçalhos, renovação única), `src/api/session-store.ts` (acesso na memória; refresh, usuário e dispositivo no SecureStore), `src/api/auth.ts`, `src/api/google.ts`, `src/hooks/use-session.tsx` (restaura ao abrir e renova ao voltar do segundo plano).
 
-Este ponto está **em aberto** e deve ser validado com um teste real antes das telas de login:
+### Limites conhecidos
 
-1. No React Native, o armazenamento de cookies é do sistema e os cookies vão sozinhos nas requisições. Ler `Set-Cookie` pelo JavaScript não é confiável entre iOS e Android.
-2. Primeira tentativa: deixar o sistema guardar os cookies e obter o `XSRF-TOKEN` para o cabeçalho. Verifique login, 2FA, renovação após 15 min e reabertura do app, em iOS e Android.
-3. Se isso não se sustentar, a solução limpa é uma pequena mudança no backend: devolver os tokens no corpo para o cliente mobile. Isso altera o outro repositório, então **proponha ao usuário e espere a aprovação**.
-
-Em qualquer caminho: token só em `expo-secure-store`, nunca em log, e em 401 renove uma vez e repita a chamada, com uma única renovação compartilhada entre chamadas simultâneas (como o `renewSession` do site).
+- Google no backend local não funciona pelo celular: o Google só aceita o `redirect_uri` cadastrado no console, e o IP da rede local não pode ser cadastrado. Teste o Google contra o backend publicado.
+- No Expo Go o endereço de volta é `exp://...`, que precisa estar em `OAUTH2_APP_REDIRECTS`. Em produção, prefira testar com build de desenvolvimento (`phcauto://auth`) a liberar `exp://`.
+- Cadastro de conta (inclusive a conta nova vinda do Google) ainda não tem tela no app; o backend já aceita.
 
 ## Erros
 

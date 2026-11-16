@@ -7,15 +7,15 @@ description: Mapa de paridade entre o site phcauto.com e o app mobile PHC Auto -
 
 O app deve fazer tudo o que o site faz. Origem das telas: `../PhcAutoRepasse/frontend/src/pages/` e `App.tsx`. As chamadas estão em `../PhcAutoRepasse/frontend/src/lib/backend.ts`, no objeto indicado.
 
-Ao concluir uma tela, marque-a aqui. Se o site ganhar uma tela nova, acrescente a linha.
+Ao concluir uma tela, marque-a aqui (`[x]` pronta, `[~]` existe mas está incompleta ou não foi testada de ponta a ponta). Se o site ganhar uma tela nova, acrescente a linha. Estado revisado em 16/11/2026; o que falta em cada `[~]` está em "Pendências das telas parciais".
 
 ## Público
 
 | Feito | Funcionalidade | Origem no site | API | No app |
 |---|---|---|---|---|
-| [ ] | Início: vitrine, abas, vendidos recentes, números | `App.tsx`, `HeroNumbers` | `homeAds`, `platformNumbers`, `searchAds` | aba Início |
-| [ ] | Busca com filtros, ordenação, paginação, localização por raio | `App.tsx`, `Filters`, `data/filters.ts` | `searchAds` | aba Buscar |
-| [ ] | Detalhe do anúncio: galeria, vídeo, laudo, FIPE, contato | `VehiclePage`, `FipeDeal`, `VideoPlayer` | `getPublicAd`, `revealAdFipe`, `getAdContactChannels`, `requestWhatsappContact`, `adStatsApi.view` | pilha |
+| [~] | Início: vitrine, abas, vendidos recentes, números | `App.tsx`, `HeroNumbers` | `homeAds`, `platformNumbers`, `searchAds` | aba Início |
+| [~] | Busca com filtros, ordenação, paginação, localização por raio | `App.tsx`, `Filters`, `data/filters.ts` | `searchAds` | aba Buscar |
+| [~] | Detalhe do anúncio: galeria, vídeo, laudo, FIPE, contato | `VehiclePage`, `FipeDeal`, `VideoPlayer` | `getPublicAd`, `revealAdFipe`, `getAdContactChannels`, `requestWhatsappContact`, `adStatsApi.view` | pilha |
 | [ ] | Lote de veículos | `LotPage` | `lotsApi` | pilha |
 | [ ] | Lojistas e página da loja | `StoresPage` | `searchStores`, `storeProfile`, `publicProfile` | Menu |
 | [ ] | Pátio PHC | `PatioPage` | `searchAds` | Menu |
@@ -27,15 +27,15 @@ Ao concluir uma tela, marque-a aqui. Se o site ganhar uma tela nova, acrescente 
 
 | Feito | Funcionalidade | Origem no site | API | No app |
 |---|---|---|---|---|
-| [ ] | Login com 2FA por e-mail e dispositivo confiável | `LoginPage` | `authApi` | modal |
-| [ ] | Login com Google | `SocialAuthButtons` | `/oauth2/authorization/google`, `authApi` social | modal |
+| [x] | Login com 2FA por e-mail e dispositivo confiável (sempre conectado) | `LoginPage` | `authApi` | modal |
+| [~] | Login com Google (pronto; falta testar contra o backend publicado) | `SocialAuthButtons` | `/oauth2/authorization/google`, `authApi` social | modal |
 | [ ] | Cadastro PF/PJ com aceite dos termos e ViaCEP | `RegisterPage`, `FormFields`, `lib/viacep.ts` | `authApi.register` | modal |
 | [ ] | Redefinir senha | `ResetPasswordPage` | `authApi` (redefinições) | modal |
 | [ ] | Perfil, foto, troca de senha | `ProfilePage`, `ProfilePhoto` | `authApi.profile`, `uploadProfilePhoto` | Menu |
 | [ ] | Exportar e excluir dados (LGPD) | `AccountPrivacy` | `privacyApi` | Menu |
-| [ ] | Favoritos, com mescla dos favoritos de visitante ao entrar | `App.tsx` | `favoritesApi` | aba Favoritos |
+| [~] | Favoritos, com mescla dos favoritos de visitante ao entrar | `App.tsx` | `favoritesApi` | aba Favoritos |
 | [ ] | Avisos da conta | `App.tsx` | `noticesApi` | Início e Menu |
-| [ ] | Mensagens (chat em tempo real) | `MessagesPage`, `lib/chatSocket.ts` | `chatApi`, STOMP | Início e Menu |
+| [~] | Mensagens (chat em tempo real) | `MessagesPage`, `lib/chatSocket.ts` | `chatApi`, STOMP | Início e Menu |
 | [ ] | Fila de espera | `WaitlistPage` | `waitlistApi` | Menu |
 
 ## Anunciante
@@ -43,12 +43,12 @@ Ao concluir uma tela, marque-a aqui. Se o site ganhar uma tela nova, acrescente 
 | Feito | Funcionalidade | Origem no site | API | No app |
 |---|---|---|---|---|
 | [ ] | Conferir dados do anunciante | `ProfilePage` | `authApi.profile` | aba Anunciar |
-| [ ] | Criar anúncio: FIPE, campos por tipo, fotos, vídeo, laudo | `AnnouncePage`, `AdMedia`, `AdVehicleFields`, `data/announcementFields.ts` | `getAdFormCatalog`, `createAdWithPhotos`, `adMediaApi` | aba Anunciar |
-| [ ] | Cota de anúncios e aviso de limite | `AdQuotaDialog`, `AdSlots` | `myAdsApi.quota` | aba Anunciar |
-| [ ] | Meus anúncios: filtros, publicar, pausar, renovar, retirar, excluir | `MyAdsPage`, `AdRetireDialog`, `AdListFilters` | `myAdsApi` | Menu |
-| [ ] | Editar anúncio | `EditAdPage` | `myAdsApi.forEdit`, `adPatchFromDrafts` | pilha |
-| [ ] | Estatísticas do anúncio | `AdStatsDialog` | `adStatsApi` | folha |
-| [ ] | Criar e editar lote | `LotEditPage`, `LotUnits` | `lotsApi` | pilha |
+| [~] | Criar anúncio: FIPE, campos por tipo, fotos, vídeo, laudo | `AnnouncePage`, `AdMedia`, `AdVehicleFields`, `data/announcementFields.ts` | `getAdFormCatalog`, `createAdWithPhotos`, `adMediaApi` | aba Anunciar |
+| [~] | Cota de anúncios e aviso de limite | `AdQuotaDialog`, `AdSlots` | `myAdsApi.quota` | aba Anunciar |
+| [~] | Meus anúncios: filtros, publicar, pausar, renovar, retirar, excluir | `MyAdsPage`, `AdRetireDialog`, `AdListFilters` | `myAdsApi` | Menu |
+| [~] | Editar anúncio | `EditAdPage` | `myAdsApi.forEdit`, `adPatchFromDrafts` | pilha |
+| [~] | Estatísticas do anúncio | `AdStatsDialog` | `adStatsApi` | folha |
+| [~] | Criar e editar lote | `LotEditPage`, `LotUnits` | `lotsApi` | pilha |
 
 ## Pagamentos
 
@@ -71,9 +71,21 @@ Visível só para os papéis de admin e dono, conforme `papel` da sessão. As ab
 | [ ] | Usuários, papéis e assinaturas cortesia | `AdminUsers` | `adminApi` |
 | [ ] | Limite de anúncios | `AdminAdLimit` | `adLimitReleaseApi` |
 | [ ] | Anúncios impulsionados | `AdminBoosts`, `AdBoostPanel` | `boostsApi` |
+| [ ] | Banners da página inicial (alimentam o carrossel do Início) | `AdminBanners`, `BannerPreviewFrame` | `adminApi` (banners) |
+| [ ] | Promoções de anúncios | `AdminPage` (aba promoções) | `adminApi` (promoções) |
 | [ ] | Moderação de conversas | `AdminChats` | `chatModerationApi` |
 
 O servidor é quem autoriza. Esconder a tela no app é só conveniência.
+
+## Pendências das telas parciais
+
+- Início: o banner usa a foto local, não os banners cadastrados no painel.
+- Busca: falta localização (cidade, UF, perto de mim, raio).
+- Detalhe do anúncio: faltam vídeo, laudo e registro de visualização; lote abre como anúncio comum.
+- Mensagens: atualiza a cada 5 s em vez de STOMP (ponto em aberto 1 do AGENTS.md).
+- Meus anúncios: falta a aba Promoções (`PromotionsManager`, `PromotionEditor`); lotes aparecem só para leitura.
+- Editar anúncio e estatísticas: prontos, falta testar de ponta a ponta no aparelho.
+- Criar lote: cria pelo fluxo de anúncio; editar lote não existe.
 
 ## Só do app
 

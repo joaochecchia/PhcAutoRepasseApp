@@ -1,7 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import {
   BadgeCheck,
   Calendar,
@@ -22,7 +22,7 @@ import {
   WifiOff,
 } from 'lucide-react-native';
 import { useState } from 'react';
-import { Alert, FlatList, Pressable, Share, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { FlatList, Linking, Pressable, Share, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
   interpolate,
   useAnimatedScrollHandler,
@@ -31,14 +31,17 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fetchAd, fetchAdPhotos, fetchPublicProfile } from '@/api/ads';
+import { fetchAd, fetchAdPhotos, fetchContactChannels, fetchPublicProfile, requestWhatsappContact } from '@/api/ads';
+import { chatApi } from '@/api/chat';
 import { mediaUrl } from '@/api/client';
 import type { AdDetail, AdPhoto, SearchAd } from '@/api/contracts';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
+import { showDialog } from '@/components/dialog';
 import { FavoriteButton } from '@/components/favorite-button';
 import { Skeleton } from '@/components/skeleton';
 import { StateView } from '@/components/state-view';
+import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
 import { conditionLabels, formatCents, formatKm, formatLocation, formatPrice, formatYears, humanize } from '@/utils/format';
 import { radius, space } from '@/theme';
@@ -224,26 +227,54 @@ export function VehicleDetail({ id }: { id: string }) {
         {favoriteShape ? <FavoriteButton ad={favoriteShape} size={40} onImage /> : <View style={styles.placeholder} />}
       </View>
 
-      {detail ? (
-        <View style={[styles.cta, { paddingBottom: insets.bottom + space.md, backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-          <Button
-            label="Conversar"
-            variant="secondary"
-            icon={<MessagesSquare size={18} color={colors.text} />}
-            onPress={needsLogin}
-            style={styles.flex}
-          />
-          <Button label="WhatsApp" icon={<Phone size={18} color={colors.onRed} />} onPress={needsLogin} style={styles.flex} />
-        </View>
-      ) : null}
+      {detail ? <ContactBar adId={detail.id} bottomInset={insets.bottom} /> : null}
     </View>
   );
 }
 
-function needsLogin() {
-  Alert.alert(
-    'Entre para falar com o vendedor',
-    'O contato pelo chat e pelo WhatsApp exige login. O login chega na próxima etapa do app.',
+/**
+ * Contato com o anunciante. Sem login, leva para entrar. Com login, o WhatsApp abre o link que o backend devolve
+ * (o número nunca chega ao app antes disso). O chat em tempo real é a próxima etapa.
+ */
+function ContactBar({ adId, bottomInset }: { adId: string; bottomInset: number }) {
+  const { colors } = useTheme();
+  const session = useSession();
+  const channels = useQuery({ queryKey: ['contact-channels', adId], queryFn: ({ signal }) => fetchContactChannels(adId, signal) });
+  const whatsapp = useMutation({
+    mutationFn: () => requestWhatsappContact(adId),
+    onSuccess: ({ url }) => {
+      Linking.openURL(url).catch(() => showDialog({ title: 'WhatsApp', message: 'Não foi possível abrir o WhatsApp neste aparelho.' }));
+    },
+    onError: (error) => showDialog({ title: 'WhatsApp', message: error instanceof Error ? error.message : 'Tente de novo.' }),
+  });
+  const startChat = useMutation({
+    mutationFn: () => chatApi.start(adId),
+    onSuccess: (conversation) => router.push(`/mensagens/${conversation.id}` as Href),
+    onError: (error) => showDialog({ title: 'Conversa', message: error.message }),
+  });
+  const signedIn = session.status === 'authenticated';
+  const whatsappOff = channels.data ? !channels.data.whatsapp : false;
+
+  return (
+    <View style={[styles.cta, { paddingBottom: bottomInset + space.md, backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+      <Button
+        label="Conversar"
+        variant="secondary"
+        icon={<MessagesSquare size={18} color={colors.text} />}
+        onPress={() => signedIn ? startChat.mutate() : router.push('/entrar')}
+        loading={startChat.isPending}
+        style={styles.flex}
+      />
+      <Button
+        label={whatsappOff ? 'Sem WhatsApp' : 'WhatsApp'}
+        icon={<Phone size={18} color={colors.onRed} />}
+        loading={whatsapp.isPending}
+        disabled={whatsappOff}
+        accessibilityHint={signedIn ? 'Abre a conversa com o anunciante no WhatsApp' : 'Entre na sua conta para falar com o anunciante'}
+        onPress={() => (signedIn ? whatsapp.mutate() : router.push('/entrar'))}
+        style={styles.flex}
+      />
+    </View>
   );
 }
 
@@ -326,6 +357,7 @@ function QuickFacts({ detail }: { detail: AdDetail }) {
 
 function FipeBlock({ detail }: { detail: AdDetail }) {
   const { colors } = useTheme();
+  const signedIn = useSession().status === 'authenticated';
   if (detail.fipeBloqueada) {
     return (
       <View style={[styles.fipe, { backgroundColor: colors.subtle, borderColor: colors.border }]}>
@@ -333,7 +365,9 @@ function FipeBlock({ detail }: { detail: AdDetail }) {
         <View style={styles.flex}>
           <AppText variant="bodyStrong">Comparação com a FIPE</AppText>
           <AppText variant="caption" color="muted">
-            Disponível para quem entra na conta. Chega com o login no app.
+            {signedIn
+              ? 'A comparação pelo app (que usa a cota FIPE do seu plano) chega na próxima etapa.'
+              : 'Entre na sua conta para comparar o preço com a tabela FIPE.'}
           </AppText>
         </View>
       </View>

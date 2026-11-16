@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
+import { router, type Href } from 'expo-router';
 import { MessagesSquare, Search, WifiOff } from 'lucide-react-native';
 import { useState } from 'react';
-import { Alert, FlatList, RefreshControl, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { FlatList, RefreshControl, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -93,9 +94,7 @@ export function Home() {
               </AppText>
             </PressableScale>
             <PressableScale
-              onPress={() =>
-                Alert.alert('Mensagens', 'O chat com os anunciantes chega junto com o login, na próxima etapa do app.')
-              }
+              onPress={() => router.push('/mensagens' as Href)}
               accessibilityRole="button"
               accessibilityLabel="Mensagens"
               style={[styles.roundButton, { backgroundColor: colors.subtle }]}>

@@ -20,8 +20,13 @@ function openAd(ad: SearchAd) {
 }
 
 function Photo({ ad, style }: { ad: SearchAd; style: object }) {
+  return <VehiclePhoto path={ad.fotoPrincipalUrl} recyclingKey={ad.anuncioId} style={style} />;
+}
+
+/** Foto do veículo com proporção fixa; sem foto, mostra o ícone de carro. */
+export function VehiclePhoto({ path, recyclingKey, style }: { path: string | null | undefined; recyclingKey: string; style: object }) {
   const { colors } = useTheme();
-  const uri = mediaUrl(ad.fotoPrincipalUrl);
+  const uri = mediaUrl(path);
   if (!uri) {
     return (
       <View style={[style, styles.noPhoto, { backgroundColor: colors.subtle }]}>
@@ -35,7 +40,7 @@ function Photo({ ad, style }: { ad: SearchAd; style: object }) {
       style={[style, { backgroundColor: colors.subtle }]}
       contentFit="cover"
       transition={180}
-      recyclingKey={ad.anuncioId}
+      recyclingKey={recyclingKey}
       accessibilityIgnoresInvertColors
     />
   );

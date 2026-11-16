@@ -9,9 +9,11 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { DialogHost } from '@/components/dialog';
 import { SplashOverlay } from '@/components/splash-overlay';
 import { FavoritesProvider } from '@/hooks/use-favorites';
 import { IntroProvider } from '@/hooks/use-intro';
+import { SessionProvider } from '@/hooks/use-session';
 import { AppThemeProvider, useTheme } from '@/hooks/use-theme';
 import { brandCharcoal } from '@/theme';
 
@@ -40,12 +42,15 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <QueryClientProvider client={queryClient}>
         <AppThemeProvider>
-          <FavoritesProvider>
-            <IntroProvider>
-              <Navigation />
-              <SplashOverlay ready />
-            </IntroProvider>
-          </FavoritesProvider>
+          <SessionProvider>
+            <FavoritesProvider>
+              <IntroProvider>
+                <Navigation />
+                <DialogHost />
+                <SplashOverlay ready />
+              </IntroProvider>
+            </FavoritesProvider>
+          </SessionProvider>
         </AppThemeProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>
@@ -66,6 +71,13 @@ function Navigation() {
         <Stack screenOptions={{ contentStyle: { backgroundColor: colors.bg }, headerTintColor: colors.red }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="anuncio/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="entrar" options={{ presentation: 'modal', title: 'Entrar', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="auth" options={{ headerShown: false, animation: 'none' }} />
+          <Stack.Screen name="meus-anuncios/index" options={{ title: 'Meus anúncios', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="meus-anuncios/[id]" options={{ title: 'Editar anúncio', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="meus-anuncios/estatisticas" options={{ title: 'Estatísticas', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="mensagens/index" options={{ title: 'Mensagens', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="mensagens/[id]" options={{ title: 'Conversa', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen
             name="anunciar"
             options={{

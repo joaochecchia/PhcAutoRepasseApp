@@ -51,7 +51,8 @@ Funciona com dados reais da API:
 - Busca com texto, filtros (tipo, condição, preço, ordenação) e rolagem infinita.
 - Detalhe do anúncio: galeria, ficha técnica, FIPE, vendedor, compartilhar.
 - Favoritos (de visitante, na memória) e tema claro/escuro.
+- Login com e-mail e senha, verificação por código (2FA), aparelho confiável e Google. A sessão fica guardada no aparelho e não expira enquanto o app for aberto ao menos a cada 90 dias.
 
-Ainda não: login, anúncio, mensagens, planos, compras e painel administrativo. Esses itens aparecem no Menu e respondem com "em breve". O que falta está mapeado na skill `.claude/skills/phc-app-paridade`.
+Ainda não: cadastro de conta, anúncio, mensagens, planos, compras e painel administrativo. Esses itens aparecem no Menu e respondem com "em breve". O que falta está mapeado na skill `.claude/skills/phc-app-paridade`.
 
 Orientações para quem desenvolve: [AGENTS.md](AGENTS.md).

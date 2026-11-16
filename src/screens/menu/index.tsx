@@ -3,15 +3,16 @@ import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as WebBrowser from 'expo-web-browser';
+import { router, type Href } from 'expo-router';
 import {
   Activity,
+  LogOut,
   Bell,
   ChevronRight,
   Clock,
   CreditCard,
   FileText,
   LayoutDashboard,
-  Lock,
   MessagesSquare,
   Server,
   ShieldCheck,
@@ -22,25 +23,30 @@ import {
   Warehouse,
   type LucideIcon,
 } from 'lucide-react-native';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fetchStatus } from '@/api/ads';
+import { authApi } from '@/api/auth';
 import { apiOrigin } from '@/api/client';
+import type { SessionUser } from '@/api/session-store';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
+import { showDialog } from '@/components/dialog';
+import { Skeleton } from '@/components/skeleton';
+import { isStaff, useSession } from '@/hooks/use-session';
 import { useTheme, type ThemePreference } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
 
-type Item = { icon: LucideIcon; label: string; note?: string; onPress?: () => void; locked?: boolean };
+type Item = { icon: LucideIcon; label: string; note?: string; onPress?: () => void };
 
 function soon(label: string) {
-  return () => Alert.alert(label, 'Esta área do site ainda está sendo trazida para o app.');
+  return () => showDialog({ title: label, message: 'Esta área do site ainda está sendo trazida para o app.' });
 }
 
 const account: Item[] = [
-  { icon: Tags, label: 'Meus anúncios', onPress: soon('Meus anúncios') },
-  { icon: MessagesSquare, label: 'Mensagens', onPress: soon('Mensagens') },
+  { icon: Tags, label: 'Meus anúncios', onPress: () => router.push('/meus-anuncios' as Href) },
+  { icon: MessagesSquare, label: 'Mensagens', onPress: () => router.push('/mensagens' as Href) },
   { icon: Bell, label: 'Avisos', onPress: soon('Avisos') },
   { icon: Clock, label: 'Fila de espera', onPress: soon('Fila de espera') },
   { icon: ShoppingBag, label: 'Minhas compras', onPress: soon('Minhas compras') },
@@ -54,15 +60,37 @@ const explore: Item[] = [
 ];
 
 const admin: Item[] = [
-  { icon: LayoutDashboard, label: 'Painel administrativo', note: 'Admin e dono', locked: true },
-  { icon: Activity, label: 'Observabilidade', note: 'Admin e dono', locked: true },
+  { icon: LayoutDashboard, label: 'Painel administrativo', onPress: soon('Painel administrativo') },
+  { icon: Activity, label: 'Observabilidade', onPress: soon('Observabilidade') },
 ];
+
+const papelLabels: Record<string, string> = { CLIENTE: 'Cliente', ADMIN: 'Administrador', DONO: 'Dono' };
+
+function confirmLogout() {
+  showDialog({
+    title: 'Sair da conta?',
+    message: 'Para voltar, você vai precisar entrar com e-mail e senha ou Google.',
+    actions: [
+      { label: 'Cancelar', kind: 'cancel' },
+      {
+        label: 'Sair',
+        kind: 'destructive',
+        onPress: () => {
+          // Mesmo sem rede a sessão some do aparelho; o servidor revoga quando recebe o pedido.
+          authApi.logout().catch(() => undefined);
+        },
+      },
+    ],
+  });
+}
 
 export function MenuScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const status = useQuery({ queryKey: ['status'], queryFn: ({ signal }) => fetchStatus(signal), refetchInterval: 30_000 });
   const online = status.data?.status === 'UP';
+  const session = useSession();
+  const user = session.status === 'authenticated' ? session.user : null;
 
   return (
     <ScrollView
@@ -72,24 +100,35 @@ export function MenuScreen() {
         Menu
       </AppText>
 
-      <View style={[styles.account, { backgroundColor: colors.subtle }]}>
-        <Image source={require('@/assets/images/phc-auto-logo-disc.png')} style={styles.logo} />
-        <View style={styles.flex}>
-          <AppText variant="heading">Entre na sua conta</AppText>
-          <AppText variant="caption" color="muted">
-            Para anunciar, conversar com vendedores e salvar favoritos em todos os aparelhos.
-          </AppText>
+      {user ? (
+        <AccountCard user={user} />
+      ) : session.status === 'loading' ? (
+        <View style={[styles.account, { backgroundColor: colors.subtle }]}>
+          <Skeleton width={52} height={52} rounded={26} />
+          <View style={[styles.flex, { gap: space.sm }]}>
+            <Skeleton width="60%" height={16} />
+            <Skeleton width="80%" height={12} />
+          </View>
         </View>
-      </View>
-      <Button
-        label="Entrar ou criar conta"
-        onPress={() => Alert.alert('Login', 'O login com verificação por e-mail é a próxima etapa do app.')}
-      />
+      ) : (
+        <>
+          <View style={[styles.account, { backgroundColor: colors.subtle }]}>
+            <Image source={require('@/assets/images/phc-auto-logo-disc.png')} style={styles.logo} />
+            <View style={styles.flex}>
+              <AppText variant="heading">Entre na sua conta</AppText>
+              <AppText variant="caption" color="muted">
+                Para anunciar, conversar com vendedores e acompanhar suas compras.
+              </AppText>
+            </View>
+          </View>
+          <Button label="Entrar ou criar conta" onPress={() => router.push('/entrar')} />
+        </>
+      )}
 
-      <Group title="Sua conta" items={account} />
+      {user ? <Group title="Sua conta" items={account} /> : null}
       <Group title="Explorar" items={explore} />
       <ThemePicker />
-      <Group title="Administração" items={admin} />
+      {user && isStaff(user.papel) ? <Group title="Administração" items={admin} /> : null}
 
       <View style={styles.group}>
         <AppText variant="overline" color="muted" style={styles.groupTitle}>
@@ -119,7 +158,70 @@ export function MenuScreen() {
           <Row icon={FileText} label="Versão" note={Constants.expoConfig?.version ?? '—'} />
         </View>
       </View>
+
+      {user ? (
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Pressable
+            onPress={confirmLogout}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.subtle }]}>
+            <LogOut size={20} color={colors.red} />
+            <AppText variant="bodyStrong" color="red" style={styles.flex}>
+              Sair da conta
+            </AppText>
+          </Pressable>
+        </View>
+      ) : null}
     </ScrollView>
+  );
+}
+
+/** Quem está logado: nome e e-mail vêm do perfil (GET /usuarios/{id}). */
+function AccountCard({ user }: { user: SessionUser }) {
+  const { colors } = useTheme();
+  const profile = useQuery({
+    queryKey: ['profile', user.usuarioId],
+    queryFn: ({ signal }) => authApi.profile(user.usuarioId, signal),
+  });
+  const name = profile.data?.razaoSocial || profile.data?.nome;
+  const initial = name?.trim().charAt(0).toLocaleUpperCase('pt-BR') ?? '';
+  return (
+    <View style={[styles.account, { backgroundColor: colors.subtle }]} accessible accessibilityLabel={name ? `Conectado como ${name}` : 'Conectado'}>
+      <View style={[styles.avatar, { backgroundColor: colors.red }]}>
+        <AppText variant="title" color="onRed">
+          {initial}
+        </AppText>
+      </View>
+      <View style={styles.flex}>
+        {profile.isPending ? (
+          <View style={{ gap: space.sm }}>
+            <Skeleton width="60%" height={16} />
+            <Skeleton width="80%" height={12} />
+          </View>
+        ) : profile.isError ? (
+          <>
+            <AppText variant="heading">Você está conectado</AppText>
+            <Pressable onPress={() => profile.refetch()} accessibilityRole="button" hitSlop={8}>
+              <AppText variant="caption" color="red">
+                Não carregamos seu perfil. Tocar para tentar de novo
+              </AppText>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <AppText variant="heading" numberOfLines={1}>
+              {name}
+            </AppText>
+            <AppText variant="caption" color="muted" numberOfLines={1}>
+              {profile.data?.email}
+            </AppText>
+          </>
+        )}
+      </View>
+      <View style={[styles.badge, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <AppText variant="label">{papelLabels[user.papel] ?? user.papel}</AppText>
+      </View>
+    </View>
   );
 }
 
@@ -180,7 +282,7 @@ function Group({ title, items }: { title: string; items: Item[] }) {
 }
 
 /** Linha larga de lista: destaca o fundo ao tocar, sem escala (skill expo-animation). */
-function Row({ icon: Icon, label, note, onPress, locked }: Item) {
+function Row({ icon: Icon, label, note, onPress }: Item) {
   const { colors } = useTheme();
   return (
     <Pressable
@@ -189,8 +291,8 @@ function Row({ icon: Icon, label, note, onPress, locked }: Item) {
       accessibilityRole={onPress ? 'button' : 'text'}
       accessibilityLabel={note ? `${label}, ${note}` : label}
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.subtle }]}>
-      <Icon size={20} color={locked ? colors.muted : colors.text} />
-      <AppText variant="bodyStrong" color={locked ? 'muted' : 'text'} style={styles.flex}>
+      <Icon size={20} color={colors.text} />
+      <AppText variant="bodyStrong" style={styles.flex}>
         {label}
       </AppText>
       {note ? (
@@ -198,7 +300,7 @@ function Row({ icon: Icon, label, note, onPress, locked }: Item) {
           {note}
         </AppText>
       ) : null}
-      {locked ? <Lock size={16} color={colors.muted} /> : onPress ? <ChevronRight size={18} color={colors.muted} /> : null}
+      {onPress ? <ChevronRight size={18} color={colors.muted} /> : null}
     </Pressable>
   );
 }
@@ -213,6 +315,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   account: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.lg },
   logo: { width: 52, height: 52 },
+  avatar: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+  badge: { paddingHorizontal: space.sm, paddingVertical: 4, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
   group: { gap: space.sm, marginTop: space.sm },
   groupTitle: { paddingHorizontal: space.xs },
   card: { borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
