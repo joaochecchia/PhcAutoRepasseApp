@@ -15,6 +15,7 @@ import {
   Gavel,
   Layers,
   Lock,
+  Megaphone,
   MapPin,
   MessagesSquare,
   PencilLine,
@@ -69,7 +70,7 @@ import { MediaGallery } from '@/components/media-gallery';
 import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
 import { conditionLabels, formatCents, formatCount, formatKm, formatLocation, formatPrice, formatYears, humanize } from '@/utils/format';
-import { radius, space } from '@/theme';
+import { radius, space, touch } from '@/theme';
 
 /** Ficha técnica por tipo, como no site. Número de série e registro marítimo identificam o bem e ficam fora. */
 const technicalFields: [key: string, label: string, suffix?: string][] = [
@@ -285,6 +286,26 @@ export function VehicleDetail({ id }: { id: string }) {
                   </View>
                   {openStore ? <ChevronRight size={20} color={colors.muted} /> : null}
                 </Pressable>
+
+                {ownAd ? null : (
+                  <Pressable
+                    onPress={() => router.push('/anunciar')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Também quer anunciar? Prepare seu anúncio"
+                    style={({ pressed }) => [
+                      styles.announce,
+                      { borderColor: colors.border, backgroundColor: pressed ? colors.subtle : colors.surface },
+                    ]}>
+                    <Megaphone size={22} color={colors.red} />
+                    <View style={styles.flex}>
+                      <AppText variant="bodyStrong">Também quer anunciar?</AppText>
+                      <AppText variant="caption" color="muted">
+                        Prepare seu anúncio
+                      </AppText>
+                    </View>
+                    <ChevronRight size={20} color={colors.muted} />
+                  </Pressable>
+                )}
               </>
             )}
           </View>
@@ -708,6 +729,15 @@ const styles = StyleSheet.create({
   history: { flexDirection: 'row', gap: space.sm },
   historyItem: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.md, borderRadius: radius.md, borderWidth: 1, minHeight: 56 },
   seller: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.lg },
+  announce: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    padding: space.lg,
+    minHeight: touch,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
   avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarImage: { width: 48, height: 48 },
   inline: { flexDirection: 'row', alignItems: 'center', gap: 4 },

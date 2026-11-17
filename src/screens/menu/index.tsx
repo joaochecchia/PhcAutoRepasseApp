@@ -5,6 +5,7 @@ import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import {
   Activity,
+  AtSign,
   LogOut,
   Bell,
   ChevronRight,
@@ -12,6 +13,7 @@ import {
   CreditCard,
   FileText,
   LayoutDashboard,
+  MessageCircle,
   MessagesSquare,
   Server,
   ShieldCheck,
@@ -23,17 +25,19 @@ import {
   Warehouse,
   type LucideIcon,
 } from 'lucide-react-native';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fetchStatus } from '@/api/ads';
 import { authApi } from '@/api/auth';
 import { apiOrigin } from '@/api/client';
+import { salesApi } from '@/api/sales';
 import type { SessionUser } from '@/api/session-store';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { showDialog } from '@/components/dialog';
 import { Skeleton } from '@/components/skeleton';
+import { company, formatPhone } from '@/data/company';
 import { useAccount } from '@/hooks/use-account';
 import { useNoticesSummary } from '@/hooks/use-notices';
 import { isStaff, useSession } from '@/hooks/use-session';
@@ -77,6 +81,10 @@ const admin: Item[] = [
 
 const papelLabels: Record<string, string> = { CLIENTE: 'Cliente', ADMIN: 'Administrador', DONO: 'Dono' };
 
+function openExternal(url: string, label: string) {
+  Linking.openURL(url).catch(() => showDialog({ title: label, message: `Não foi possível abrir o ${label} neste aparelho.` }));
+}
+
 function confirmLogout() {
   showDialog({
     title: 'Sair da conta?',
@@ -103,6 +111,12 @@ export function MenuScreen() {
   const session = useSession();
   const user = session.status === 'authenticated' ? session.user : null;
   const notices = useNoticesSummary();
+  // O WhatsApp do atendimento vem do servidor e some se não estiver cadastrado, como no rodapé do site.
+  const support = useQuery({
+    queryKey: ['support-whatsapp'],
+    queryFn: ({ signal }) => salesApi.supportWhatsapp(signal),
+    staleTime: 60 * 60_000,
+  });
 
   return (
     <ScrollView
@@ -153,6 +167,24 @@ export function MenuScreen() {
             onPress={() => router.push('/privacidade' as Href)}
           />
           <Divider />
+          {support.data ? (
+            <>
+              <Row
+                icon={MessageCircle}
+                label="Atendimento"
+                note={formatPhone(support.data)}
+                onPress={() => openExternal(`https://wa.me/${support.data}`, 'WhatsApp')}
+              />
+              <Divider />
+            </>
+          ) : null}
+          <Row
+            icon={AtSign}
+            label="Instagram"
+            note={`@${company.instagram}`}
+            onPress={() => openExternal(`https://www.instagram.com/${company.instagram}/`, 'Instagram')}
+          />
+          <Divider />
           <Pressable onPress={() => status.refetch()} accessibilityRole="button" accessibilityLabel={`Servidor ${online ? 'no ar' : 'fora do ar'}, ${apiOrigin}`} style={styles.row}>
             <Server size={20} color={colors.text} />
             <View style={styles.flex}>
@@ -168,6 +200,14 @@ export function MenuScreen() {
           </Pressable>
           <Divider />
           <Row icon={FileText} label="Versão" note={Constants.expoConfig?.version ?? '—'} />
+        </View>
+        <View style={styles.legal}>
+          <AppText variant="caption" color="muted" selectable>
+            {company.razaoSocial}
+          </AppText>
+          <AppText variant="caption" color="muted" selectable>
+            CNPJ {company.cnpj} · {company.endereco}
+          </AppText>
         </View>
       </View>
 
@@ -345,6 +385,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, minHeight: 52, paddingVertical: space.sm },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: space.lg + 20 + space.md },
   status: { width: 8, height: 8, borderRadius: 4 },
+  legal: { paddingHorizontal: space.xs, gap: 2 },
   pill: { paddingHorizontal: space.sm, paddingVertical: 2, borderRadius: radius.pill },
   segmented: { flexDirection: 'row', padding: 3, borderRadius: radius.md },
   segment: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm + 1 },

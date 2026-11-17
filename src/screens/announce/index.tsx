@@ -26,12 +26,14 @@ import {
 } from "@/api/announce";
 import { isUploadInterrupted } from "@/api/client";
 import { myAdsApi } from "@/api/my-ads";
+import { AdQualityTips } from "@/components/ad-quality-tips";
 import { AppText } from "@/components/app-text";
 import { Button } from "@/components/button";
 import { Notice } from "@/components/notice";
 import { TextField } from "@/components/text-field";
 import { useAccount } from "@/hooks/use-account";
 import { useSession } from "@/hooks/use-session";
+import { useFipeConditionSync } from "@/hooks/use-fipe-condition-sync";
 import { cleanMasked, displayMasked, maskInput } from "@/utils/masks";
 import { useTheme } from "@/hooks/use-theme";
 import { radius, space, touch } from "@/theme";
@@ -113,6 +115,7 @@ export function Announce() {
   const [created, setCreated] = useState<string | null>(null);
   const [warning, setWarning] = useState("");
   const [reference, setReference] = useState<FipeReference | null>(null);
+  const [fipeNotice, setFipeNotice] = useState("");
   const [progress, setProgress] = useState<number | null>(null);
   // Primeiro passo, como no site: conferir os dados do anunciante.
   const [reviewed, setReviewed] = useState(false);
@@ -121,6 +124,16 @@ export function Announce() {
   const fipeType = fipeTypes[tipo];
   const signedIn = session.status === "authenticated";
   const profile = useAccount();
+
+  // Trocar zero km/seminovo troca a cotação FIPE pela da mesma versão, como no site.
+  const syncingFipe = useFipeConditionSync({
+    condicao: values.condicao || "",
+    anoModelo: values.anoModelo || "",
+    veiculo: `${values.fabricante || ""}|${values.modelo || ""}`,
+    reference,
+    onReference: setReference,
+    onNotice: setFipeNotice,
+  });
 
   const asLot =
     lotMode && tipo === "CARRO" && profile.data?.tipoPessoa === "PJ";
@@ -197,6 +210,25 @@ export function Announce() {
     (item) => item.required && documentKeys.has(item.key),
   );
   const optionalTechnical = technical.filter((item) => !item.required);
+  // Dicas de qualidade: contam só o que já foi preenchido; a relevância é calculada no servidor.
+  const optionalKeys = [
+    "versao",
+    "identificadorPublico",
+    "tipoFreio",
+    ...optionalTechnical.map((item) => `${tipo}.${item.key}`),
+  ];
+  const qualityTips = (compact: boolean) => (
+    <AdQualityTips
+      photos={photos.length}
+      optionalFilled={
+        optionalKeys.filter((key) => (values[key] ?? "").trim()).length
+      }
+      optionalTotal={optionalKeys.length}
+      priceDefined={asLot || values.tipoPreco === "FIXO"}
+      fipeLinked={fipeType ? Boolean(reference) : null}
+      compact={compact}
+    />
+  );
   const create = useMutation({
     mutationFn: async () => {
       if (session.status !== "authenticated")
@@ -330,12 +362,17 @@ export function Announce() {
         ? { contatoNaoDivulgar: "false" }
         : {}),
     }));
+    // A condição é tratada por useFipeConditionSync. O ano só desvincula a cotação de usado (a de zero km não tem ano).
     if (
-      ["condicao", "anoModelo", "fabricante", "modelo", "tipoVeiculo"].includes(
-        key,
-      )
-    )
+      ["fabricante", "modelo", "tipoVeiculo"].includes(key) ||
+      (key === "anoModelo" &&
+        reference &&
+        !reference.zeroKm &&
+        value !== String(reference.anoModelo))
+    ) {
       setReference(null);
+      setFipeNotice("");
+    }
     if (
       ["fabricante", "modelo", "versao", "anoModelo", "tipoVeiculo"].includes(
         key,
@@ -352,13 +389,6 @@ export function Announce() {
         anoModelo: "",
       }));
     }
-    if (key === "anoModelo")
-      setValues((current) => ({
-        ...current,
-        anoModelo: value,
-        modelo: "",
-        versao: "",
-      }));
   }
   function choice(key: string, options: { value: string; label: string }[]) {
     return (
@@ -369,6 +399,11 @@ export function Announce() {
       />
     );
   }
+  const fipeStatus = syncingFipe ? (
+    <Notice message="Buscando a cotação FIPE para a condição escolhida…" />
+  ) : fipeNotice ? (
+    <Notice message={fipeNotice} />
+  ) : null;
   function field(item: Field, prefix = "") {
     return (
       <AdField
@@ -557,6 +592,7 @@ export function Announce() {
     if (current === 1) {
       if (fipeType && edition.isPending)
         return "Aguarde a tabela FIPE carregar.";
+      if (syncingFipe) return "Aguarde a atualização da referência FIPE.";
       if (!values.fabricante?.trim() || !values.modelo?.trim())
         return "Escolha a marca e o modelo.";
       if (fipeType && edition.data && !reference)
@@ -836,21 +872,35 @@ export function Announce() {
             <AppText color="muted">
               Você pode voltar e mudar estas escolhas durante o preenchimento.
             </AppText>
+            {fipeStatus}
           </View>
         ) : null}
         {stage === 1 ? (
           <View style={styles.section}>
+            {fipeStatus}
             {fipeType && edition.data ? (
               <FipeSelector
-                key={`${tipo}-${values.condicao}`}
+                key={tipo}
                 tipo={fipeType}
                 zeroKm={values.condicao === "ZERO_KM"}
                 reference={reference}
                 onBrand={(name) => update("fabricante", name)}
-                onYear={(yearValue) => update("anoModelo", yearValue)}
-                onClear={() => setReference(null)}
+                onYear={(yearValue) => {
+                  // FIPE: marca → ano → modelo; trocar o ano invalida o modelo escolhido.
+                  update("anoModelo", yearValue);
+                  setValues((current) => ({
+                    ...current,
+                    modelo: "",
+                    versao: "",
+                  }));
+                }}
+                onClear={() => {
+                  setReference(null);
+                  setFipeNotice("");
+                }}
                 onResolved={(result) => {
                   setReference(result);
+                  setFipeNotice("");
                   setExisting([]);
                   setValues((current) => ({
                     ...current,
@@ -1163,6 +1213,7 @@ export function Announce() {
               Estes dados ajudam a detalhar o anúncio. Você pode continuar sem
               preenchê-los.
             </AppText>
+            {qualityTips(false)}
             {field({ key: "versao", label: "Versão", maxLength: 250 })}
             {field({
               key: "identificadorPublico",
@@ -1374,6 +1425,7 @@ export function Announce() {
         {stage === 8 ? (
           <View style={styles.section}>
             <AppText color="muted">Confira os dados antes de salvar.</AppText>
+            {qualityTips(true)}
             <View
               style={[
                 styles.reviewCard,

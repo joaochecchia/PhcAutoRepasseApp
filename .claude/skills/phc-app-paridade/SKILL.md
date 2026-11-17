@@ -91,6 +91,8 @@ Estado em 16/11/2026. Tudo o que está `[~]` compila e gera o bundle Android. As
 - Planos: lista, preços e "Seu plano". A assinatura abre o site: pagamento no app depende dos pontos em aberto 2 e 3 do AGENTS.md.
 - Privacidade: sem a parte de cookies do site (o app não usa cookies nem o Pixel).
 - Meus anúncios: completo, com Promoções e Lotes. Editar lote: completo.
+- Detalhes do site trazidos em 17/11/2026: dicas de qualidade do anúncio (`AdQualityTips` → `src/components/ad-quality-tips.tsx`, nas etapas "Dados opcionais" e "Conferência"); troca automática da FIPE equivalente ao mudar zero km/seminovo (`useFipeConditionSync` → `src/hooks/use-fipe-condition-sync.ts`, no Anunciar e na edição; `POST /fipe/consultas/equivalente` e `GET /fipe/referencias/{id}`); dados da empresa do rodapé (`CompanyInfo` → Menu › Sobre, com o WhatsApp de `GET /vendas/atendimento` e o Instagram); e o atalho "Também quer anunciar?" no detalhe do veículo. Compilam e passam no lint; a troca da FIPE não foi exercitada contra o backend com login, e nada disso foi conferido no aparelho.
+- Fora de propósito: aviso de cookies e Meta Pixel (o app não usa nenhum dos dois).
 
 ## Só do app
 

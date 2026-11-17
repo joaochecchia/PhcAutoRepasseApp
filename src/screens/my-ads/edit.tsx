@@ -16,6 +16,7 @@ import { Notice } from '@/components/notice';
 import { Skeleton } from '@/components/skeleton';
 import { StateView } from '@/components/state-view';
 import { TextField } from '@/components/text-field';
+import { useFipeConditionSync } from '@/hooks/use-fipe-condition-sync';
 import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
@@ -71,7 +72,7 @@ export function EditAdScreen() {
   return <EditForm key={ad.data.id} ad={ad.data} />;
 }
 
-type FipeLink = { id: string; modelo: string; valorCentavos: number; mesReferencia: string } | null;
+type FipeLink = FipeReference | null;
 
 function EditForm({ ad }: { ad: AdForEdit }) {
   const { colors } = useTheme();
@@ -82,10 +83,29 @@ function EditForm({ ad }: { ad: AdForEdit }) {
   const loaded = useMemo(() => adToDraft(ad), [ad]);
   const [values, setValues] = useState<Draft>(loaded.draft);
   const [motors, setMotors] = useState<Motors>(loaded.motors);
+  // O resumo do anúncio não diz se a cotação é zero km; a condição do anúncio vale até a referência completa chegar.
   const initialFipe: FipeLink = ad.fipe
-    ? { id: ad.fipe.referenciaId, modelo: ad.fipe.modelo, valorCentavos: ad.fipe.valorCentavos, mesReferencia: ad.fipe.mesReferencia }
+    ? {
+        id: ad.fipe.referenciaId,
+        codigoFipe: ad.fipe.codigo,
+        marca: ad.fabricante,
+        modelo: ad.fipe.modelo,
+        anoModelo: ad.anoModelo ?? 0,
+        zeroKm: ad.condicao === 'ZERO_KM',
+        combustivel: '',
+        valorCentavos: ad.fipe.valorCentavos,
+        mesReferencia: ad.fipe.mesReferencia,
+      }
     : null;
-  const [fipe, setFipe] = useState<FipeLink>(initialFipe);
+  const [savedFipe, setFipe] = useState<FipeLink>(initialFipe);
+  const fullFipe = useQuery({
+    queryKey: ['fipe-reference', ad.fipe?.referenciaId],
+    queryFn: ({ signal }) => announceApi.fipeReferenceById(ad.fipe!.referenciaId, signal),
+    enabled: Boolean(ad.fipe),
+    staleTime: Infinity,
+    retry: 1,
+  });
+  const fipe = savedFipe && fullFipe.data?.id === savedFipe.id ? fullFipe.data : savedFipe;
   const [choosing, setChoosing] = useState<{ values: Draft; fipe: FipeLink } | null>(null);
   const [fipeNotice, setFipeNotice] = useState('');
   const [error, setError] = useState('');
@@ -107,6 +127,16 @@ function EditForm({ ad }: { ad: AdForEdit }) {
     .filter((item) => !electric || !['motorizacao', 'turbo'].includes(item.key));
   const required = technical.filter((item) => item.required);
   const optional = technical.filter((item) => !item.required);
+
+  // Trocar zero km/seminovo troca a cotação FIPE pela da mesma versão, como no site.
+  const syncingFipe = useFipeConditionSync({
+    condicao: values.condicao || '',
+    anoModelo: values.anoModelo || '',
+    veiculo: `${values.fabricante || ''}|${values.modelo || ''}`,
+    reference: fipe,
+    onReference: setFipe,
+    onNotice: setFipeNotice,
+  });
 
   const catalog = useQuery({ queryKey: ['ad-catalog'], queryFn: ({ signal }) => announceApi.catalog(signal) });
   const suggest = (key: string) => suggestionsFor(catalog.data, tipo, values.fabricante, key);
@@ -164,15 +194,19 @@ function EditForm({ ad }: { ad: AdForEdit }) {
       if ((key === 'contatoWhatsapp' || key === 'contatoLigacao') && value === 'true') next.contatoNaoDivulgar = 'false';
       return next;
     });
-    // Mudar a identidade ou a condição do veículo desvincula a cotação FIPE (como no site).
-    if (fipe && ['fabricante', 'modelo', 'anoModelo', 'condicao', `${tipo}.combustivel`].includes(key) && !choosing) {
+    // Mudar a identidade do veículo desvincula a cotação FIPE (como no site). A condição é tratada por
+    // useFipeConditionSync, e o ano só conta na cotação de usado (a de zero km não tem ano).
+    const conflict =
+      ['fabricante', 'modelo', `${tipo}.combustivel`].includes(key) ||
+      (key === 'anoModelo' && fipe && !fipe.zeroKm && value !== String(fipe.anoModelo));
+    if (fipe && conflict && !choosing) {
       setFipe(null);
       setFipeNotice('A referência FIPE será removida ao salvar. Escolha o modelo na FIPE para vincular outra.');
     }
   }
 
   function applyReference(reference: FipeReference) {
-    setFipe({ id: reference.id, modelo: reference.modelo, valorCentavos: reference.valorCentavos, mesReferencia: reference.mesReferencia });
+    setFipe(reference);
     setFipeNotice('');
     setValues((prev) => ({
       ...prev,
@@ -207,6 +241,7 @@ function EditForm({ ad }: { ad: AdForEdit }) {
 
   function validate(): string {
     if (choosing) return 'Termine a escolha na FIPE ou toque em "Manter veículo atual".';
+    if (syncingFipe) return 'Aguarde a atualização da referência FIPE.';
     const check = (item: Field, prefix = '') => {
       const raw = values[`${prefix}${item.key}`] || '';
       if (item.required && !raw.trim()) return `Preencha ${item.label.toLowerCase()}.`;
@@ -414,7 +449,11 @@ function EditForm({ ad }: { ad: AdForEdit }) {
               {field({ key: 'modelo', label: 'Modelo', required: true, maxLength: 250 })}
             </>
           )}
-          {fipeNotice ? <Notice message={fipeNotice} /> : null}
+          {syncingFipe ? (
+            <Notice message="Buscando a cotação FIPE para a condição escolhida…" />
+          ) : fipeNotice ? (
+            <Notice message={fipeNotice} />
+          ) : null}
           <AppText variant="label">Condição *</AppText>
           <ChoiceRow
             value={values.condicao}

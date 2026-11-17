@@ -146,6 +146,22 @@ export const announceApi = {
       body: input,
       auth: true,
     }),
+  /** Mesma versão FIPE na cotação zero km ou de usado do ano informado; 404 quando o modelo não tem essa cotação. */
+  fipeEquivalent: (
+    input: { referenciaId: string; zeroKm: boolean; anoModelo: number | null },
+    signal?: AbortSignal,
+  ) =>
+    request<FipeReference>("/fipe/consultas/equivalente", {
+      method: "POST",
+      body: input,
+      auth: true,
+      signal,
+    }),
+  fipeReferenceById: (id: string, signal?: AbortSignal) =>
+    request<FipeReference>(`/fipe/referencias/${encodeURIComponent(id)}`, {
+      auth: true,
+      signal,
+    }),
   fipeEdition: (
     tipo: "cars" | "motorcycles" | "trucks",
     signal?: AbortSignal,
