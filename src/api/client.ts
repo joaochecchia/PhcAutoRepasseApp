@@ -2,6 +2,8 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
+import { fieldLabel, isKnownField } from '@/utils/field-labels';
+
 import { sessionStore, type AppTokens } from './session-store';
 
 /**
@@ -79,6 +81,12 @@ function queryString(params?: Query) {
 function messageFrom(body: unknown, status: number): string {
   if (body && typeof body === 'object') {
     const record = body as Record<string, unknown>;
+    // Erros por campo dizem o que corrigir ("Câmbio: campo obrigatório"), como no site.
+    const fields = fieldErrorList(record.erros ?? record.errors);
+    if (fields) {
+      const lead = typeof record.detail === 'string' && record.detail ? record.detail : 'Confira os campos';
+      return `${lead}: ${fields}.`;
+    }
     for (const key of ['mensagem', 'detail', 'message', 'erro']) {
       if (typeof record[key] === 'string' && record[key]) return record[key] as string;
     }
@@ -89,6 +97,21 @@ function messageFrom(body: unknown, status: number): string {
   if (status === 429) return 'Muitas tentativas seguidas. Aguarde um pouco e tente de novo.';
   if (status >= 500) return 'O servidor teve um problema. Tente de novo em instantes.';
   return 'Não foi possível concluir. Tente de novo.';
+}
+
+/**
+ * "carro.cambio" + "Campo obrigatório" vira "Câmbio: campo obrigatório". Regras gerais (chave que não é um campo,
+ * como "escolhaValida") já são frases completas e aparecem sozinhas. Mesmo critério do site.
+ */
+function fieldErrorList(errors: unknown): string {
+  if (!errors || typeof errors !== 'object') return '';
+  return Object.entries(errors as Record<string, unknown>)
+    .filter((entry): entry is [string, string] => typeof entry[1] === 'string' && Boolean(entry[1]))
+    .map(([key, message]) => {
+      const generalRule = !isKnownField(key) && /^\p{Lu}/u.test(message) && message.split(' ').length > 3;
+      return generalRule ? message : `${fieldLabel(key)}: ${message.charAt(0).toLowerCase()}${message.slice(1)}`;
+    })
+    .join('; ');
 }
 
 function safeJson(text: string): unknown {
@@ -202,6 +225,8 @@ function sendUpload<T>(
     const xhr = new XMLHttpRequest();
     xhr.open(method, `${apiBase}${path}`);
     xhr.timeout = timeoutMs;
+    // Como o fetch (credentials: 'omit'): o app não guarda nem envia cookies; o backend ignora cookies no modo app.
+    xhr.withCredentials = false;
     Object.entries(appHeaders).forEach(([key, value]) => xhr.setRequestHeader(key, value));
     if (accessToken) xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
     if (onProgress && xhr.upload) {
@@ -241,10 +266,12 @@ export function isUploadInterrupted(error: unknown) {
 export async function upload<T>(
   path: string,
   body: FormData,
-  options: { method?: 'POST' | 'PUT'; timeoutMs?: number; onProgress?: UploadProgress } = {},
+  options: { method?: 'POST' | 'PUT'; timeoutMs?: number; onProgress?: UploadProgress; auth?: boolean } = {},
 ): Promise<T> {
   const method = options.method ?? 'POST';
   const timeoutMs = options.timeoutMs ?? 120_000;
+  // Envio público (cadastro com foto): sem sessão.
+  if (options.auth === false) return sendUpload<T>(path, method, body, null, timeoutMs, options.onProgress);
   let token = sessionStore.accessToken();
   if (!token && (await renewSession())) token = sessionStore.accessToken();
   if (!token) throw new ApiError('Entre na sua conta para continuar.', 401);

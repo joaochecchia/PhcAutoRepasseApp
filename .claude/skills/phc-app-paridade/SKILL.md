@@ -16,33 +16,33 @@ Ao concluir uma tela, marque-a aqui (`[x]` pronta, `[~]` existe mas está incomp
 | [~] | Início: vitrine, abas, vendidos recentes, números | `App.tsx`, `HeroNumbers` | `homeAds`, `platformNumbers`, `searchAds` | aba Início |
 | [~] | Busca com filtros, ordenação, paginação, localização por raio | `App.tsx`, `Filters`, `data/filters.ts` | `searchAds` | aba Buscar |
 | [~] | Detalhe do anúncio: galeria, vídeo, laudo, FIPE, contato | `VehiclePage`, `FipeDeal`, `VideoPlayer` | `getPublicAd`, `revealAdFipe`, `getAdContactChannels`, `requestWhatsappContact`, `adStatsApi.view` | pilha |
-| [ ] | Lote de veículos | `LotPage` | `lotsApi` | pilha |
-| [ ] | Lojistas e página da loja | `StoresPage` | `searchStores`, `storeProfile`, `publicProfile` | Menu |
-| [ ] | Pátio PHC | `PatioPage` | `searchAds` | Menu |
-| [ ] | Tabela FIPE | `FipeTablePage`, `FipeVehicleSelector` | `getFipePage`, `resolveFipeReference`, `getFipeQuota` | Menu |
-| [ ] | Planos e preços | `PlansPage` | `plansApi.list` | Menu |
-| [ ] | Privacidade e termos | `PrivacyPage` | `privacyApi.info` | Menu |
+| [~] | Lote de veículos | `LotPage` | `lotsApi` | pilha |
+| [~] | Lojistas e página da loja | `StoresPage` | `searchStores`, `storeProfile`, `publicProfile` | Menu |
+| [~] | Pátio PHC | `PatioPage` | `searchAds` | Menu |
+| [~] | Tabela FIPE | `FipeTablePage`, `FipeVehicleSelector` | `getFipePage`, `resolveFipeReference`, `getFipeQuota` | Menu |
+| [~] | Planos e preços | `PlansPage` | `plansApi.list` | Menu |
+| [~] | Privacidade e termos | `PrivacyPage` | `privacyApi.info` | Menu |
 
 ## Conta
 
 | Feito | Funcionalidade | Origem no site | API | No app |
 |---|---|---|---|---|
 | [x] | Login com 2FA por e-mail e dispositivo confiável (sempre conectado) | `LoginPage` | `authApi` | modal |
-| [~] | Login com Google (pronto; falta testar contra o backend publicado) | `SocialAuthButtons` | `/oauth2/authorization/google`, `authApi` social | modal |
-| [ ] | Cadastro PF/PJ com aceite dos termos e ViaCEP | `RegisterPage`, `FormFields`, `lib/viacep.ts` | `authApi.register` | modal |
-| [ ] | Redefinir senha | `ResetPasswordPage` | `authApi` (redefinições) | modal |
-| [ ] | Perfil, foto, troca de senha | `ProfilePage`, `ProfilePhoto` | `authApi.profile`, `uploadProfilePhoto` | Menu |
-| [ ] | Exportar e excluir dados (LGPD) | `AccountPrivacy` | `privacyApi` | Menu |
+| [~] | Login com Google (produção aceita o modo app; falta o login real num build de desenvolvimento) | `SocialAuthButtons` | `/oauth2/authorization/google`, `authApi` social | modal |
+| [~] | Cadastro PF/PJ com aceite dos termos e ViaCEP (também o cadastro vindo do Google) | `RegisterPage`, `FormFields`, `lib/viacep.ts` | `authApi.register` | modal (`/cadastro`) |
+| [~] | Redefinir senha | `ResetPasswordPage` | `authApi` (redefinições) | modal |
+| [~] | Perfil, foto, troca de senha | `ProfilePage`, `ProfilePhoto` | `authApi.profile`, `uploadProfilePhoto` | Menu |
+| [~] | Exportar e excluir dados (LGPD) | `AccountPrivacy` | `privacyApi` | Menu |
 | [~] | Favoritos, com mescla dos favoritos de visitante ao entrar | `App.tsx` | `favoritesApi` | aba Favoritos |
-| [ ] | Avisos da conta | `App.tsx` | `noticesApi` | Início e Menu |
+| [~] | Avisos da conta | `App.tsx` | `noticesApi` | Início e Menu |
 | [~] | Mensagens (chat em tempo real) | `MessagesPage`, `lib/chatSocket.ts` | `chatApi`, STOMP | Início e Menu |
-| [ ] | Fila de espera | `WaitlistPage` | `waitlistApi` | Menu |
+| [~] | Fila de espera | `WaitlistPage` | `waitlistApi` | Menu |
 
 ## Anunciante
 
 | Feito | Funcionalidade | Origem no site | API | No app |
 |---|---|---|---|---|
-| [ ] | Conferir dados do anunciante | `ProfilePage` | `authApi.profile` | aba Anunciar |
+| [~] | Conferir dados do anunciante | `ProfilePage` | `authApi.profile` | aba Anunciar |
 | [~] | Criar anúncio: FIPE, campos por tipo, fotos, vídeo, laudo | `AnnouncePage`, `AdMedia`, `AdVehicleFields`, `data/announcementFields.ts` | `getAdFormCatalog`, `createAdWithPhotos`, `adMediaApi` | aba Anunciar |
 | [~] | Cota de anúncios e aviso de limite | `AdQuotaDialog`, `AdSlots` | `myAdsApi.quota` | aba Anunciar |
 | [~] | Meus anúncios: filtros, publicar, pausar, renovar, retirar, excluir | `MyAdsPage`, `AdRetireDialog`, `AdListFilters` | `myAdsApi` | Menu |
@@ -79,13 +79,18 @@ O servidor é quem autoriza. Esconder a tela no app é só conveniência.
 
 ## Pendências das telas parciais
 
-- Início: o banner usa a foto local, não os banners cadastrados no painel.
-- Busca: falta localização (cidade, UF, perto de mim, raio).
-- Detalhe do anúncio: faltam vídeo, laudo e registro de visualização; lote abre como anúncio comum.
-- Mensagens: atualiza a cada 5 s em vez de STOMP (ponto em aberto 1 do AGENTS.md).
-- Meus anúncios: falta a aba Promoções (`PromotionsManager`, `PromotionEditor`); lotes aparecem só para leitura.
-- Editar anúncio e estatísticas: prontos, falta testar de ponta a ponta no aparelho.
-- Criar lote: cria pelo fluxo de anúncio; editar lote não existe.
+Estado em 16/11/2026. Tudo o que está `[~]` compila e gera o bundle Android. As chamadas com login (sessão, favoritos, criar, editar, fotos, retirar e publicar, estatísticas, lotes, promoções e chat por REST e WebSocket) passaram de ponta a ponta contra o backend local, com o código de `src/api` rodando no Node. Falta conferir as telas no aparelho.
+
+- Início: usa os banners do painel (`/site/banners`), com os locais como reserva. O número da plataforma por cima do banner (exibirNumeros) não é desenhado: os números já aparecem logo abaixo.
+- Busca e lojistas: localização por cidade, UF, perto de mim (expo-location) e endereço do cadastro; o raio vem do servidor.
+- Detalhe do anúncio: vídeo (expo-video), laudo, visualização, revelar FIPE com a cota, promoções e faixa do lote. Destaques e ficha técnica por tipo (barco, linha amarela), placa, aceita troca e histórico de leilão e sinistro (verde só com laudo), como no site.
+- Mensagens: STOMP com o token no cabeçalho do handshake (sem mudança no backend). O Origin que o React Native manda (o do próprio servidor) é aceito como mesma origem. Envio com confirmação, recebimento, entrega e leitura em tempo real conferidos entre duas contas no backend local; sem conexão, volta a atualizar a cada 10 s.
+- Conta (16/11/2026): cadastro em `/cadastro` (PF/PJ, CEP, foto, termos; conta nova do Google sem senha, com o verificador PKCE), senha em `/redefinir-senha` (esqueci e, com `origem=perfil`, troca), Minha conta em `/minha-conta` (dados, foto, senha, baixar dados, excluir em `/minha-conta/excluir`), avisos em `/avisos` (contador no Menu e na aba), fila de espera em `/fila-espera`, e a conferência dos dados como primeiro passo do Anunciar. Testado contra o backend local pela API e pela tela na web; redefinição e troca de senha não foram exercitadas até o fim porque mandam e-mail de verdade (Brevo ligado no backend local). Falta conferir no aparelho.
+- Favoritos: na conta, com mescla dos de visitante ao entrar e desfazer em caso de erro; a aba carrega os cards do servidor.
+- Google: produção aceita `phcauto://auth` e recusa `exp://`, então no Expo Go o Google não fecha contra produção. Testar com build de desenvolvimento ou liberar `exp://` em produção (decisão do usuário).
+- Planos: lista, preços e "Seu plano". A assinatura abre o site: pagamento no app depende dos pontos em aberto 2 e 3 do AGENTS.md.
+- Privacidade: sem a parte de cookies do site (o app não usa cookies nem o Pixel).
+- Meus anúncios: completo, com Promoções e Lotes. Editar lote: completo.
 
 ## Só do app
 

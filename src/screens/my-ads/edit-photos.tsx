@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { mediaUrl } from '@/api/client';
+import type { UploadFile } from '@/api/announce';
 import { myAdsApi, type OwnPhoto } from '@/api/my-ads';
 import { AppText } from '@/components/app-text';
 import { showDialog } from '@/components/dialog';
@@ -14,31 +15,62 @@ import { Notice } from '@/components/notice';
 import { Skeleton } from '@/components/skeleton';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
-import { preparePhoto } from '@/screens/announce/ad-fields';
+import { preparePhoto } from '@/utils/prepare-photo';
 
 const MAX_PHOTOS = 8;
 
 /** Fotos do anúncio: cada foto é enviada ou removida na hora, sem precisar salvar o formulário. */
 export function EditPhotos({ anuncioId }: { anuncioId: string }) {
-  const { colors } = useTheme();
   const cache = useQueryClient();
   const photos = useQuery({
     queryKey: ['ad-own-photos', anuncioId],
     queryFn: ({ signal }) => myAdsApi.photos(anuncioId, signal),
   });
+  return (
+    <PhotoManager
+      photos={photos.data}
+      loading={photos.isPending}
+      failed={photos.isError}
+      retrying={photos.isFetching}
+      onRetry={() => photos.refetch()}
+      upload={(file, posicao) => myAdsApi.addPhoto(anuncioId, file, posicao)}
+      remove={(fotoId) => myAdsApi.removePhoto(anuncioId, fotoId)}
+      onChanged={() => {
+        cache.invalidateQueries({ queryKey: ['ad-own-photos', anuncioId] });
+        cache.invalidateQueries({ queryKey: ['ad-photos', anuncioId] });
+        cache.invalidateQueries({ queryKey: ['my-ads'] });
+      }}
+      noun="anúncio"
+    />
+  );
+}
+
+type ManagerProps = {
+  photos: OwnPhoto[] | undefined;
+  loading: boolean;
+  failed: boolean;
+  retrying: boolean;
+  onRetry: () => void;
+  upload: (file: UploadFile, posicao: number) => Promise<unknown>;
+  remove: (fotoId: string) => Promise<unknown>;
+  onChanged: () => void;
+  noun: 'anúncio' | 'lote';
+  /** O lote precisa de ao menos uma foto. */
+  keepOne?: boolean;
+};
+
+/** Grade de fotos enviadas e removidas na hora (anúncio ou lote). */
+export function PhotoManager({ photos: source, loading, failed, retrying, onRetry, upload, remove, onChanged, noun, keepOne }: ManagerProps) {
+  const { colors } = useTheme();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const list = [...(photos.data ?? [])].sort((left, right) => left.posicao - right.posicao);
+  const list = [...(source ?? [])].sort((left, right) => left.posicao - right.posicao);
   const free = Array.from({ length: MAX_PHOTOS }, (_, position) => position).filter(
     (position) => !list.some((photo) => photo.posicao === position),
   );
 
-  const refresh = () => {
-    cache.invalidateQueries({ queryKey: ['ad-own-photos', anuncioId] });
-    cache.invalidateQueries({ queryKey: ['ad-photos', anuncioId] });
-    cache.invalidateQueries({ queryKey: ['my-ads'] });
-  };
+  const refresh = onChanged;
 
   async function send(assets: ImagePicker.ImagePickerAsset[]) {
     const selected = assets.slice(0, free.length);
@@ -46,11 +78,11 @@ export function EditPhotos({ anuncioId }: { anuncioId: string }) {
     setError('');
     setNotice('');
     let sent = 0;
-    let failure = assets.length > free.length ? `Cada anúncio aceita no máximo ${MAX_PHOTOS} fotos.` : '';
+    let failure = assets.length > free.length ? `Cada ${noun} aceita no máximo ${MAX_PHOTOS} fotos.` : '';
     for (const [index, asset] of selected.entries()) {
       try {
         const file = await preparePhoto(asset, `veiculo-${free[index] + 1}.jpg`);
-        await myAdsApi.addPhoto(anuncioId, file, free[index]);
+        await upload(file, free[index]);
         sent++;
       } catch (reason) {
         failure = reason instanceof Error ? reason.message : 'Não foi possível enviar uma das fotos.';
@@ -60,7 +92,7 @@ export function EditPhotos({ anuncioId }: { anuncioId: string }) {
     setError(failure);
     if (sent) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setNotice(sent === 1 ? 'Foto enviada e salva no anúncio.' : `${sent} fotos enviadas e salvas no anúncio.`);
+      setNotice(sent === 1 ? `Foto enviada e salva no ${noun}.` : `${sent} fotos enviadas e salvas no ${noun}.`);
       refresh();
     }
   }
@@ -87,9 +119,13 @@ export function EditPhotos({ anuncioId }: { anuncioId: string }) {
   }
 
   function confirmRemove(photo: OwnPhoto, index: number) {
+    if (keepOne && list.length === 1) {
+      setError(`O ${noun} precisa de ao menos uma foto. Envie outra antes de remover esta.`);
+      return;
+    }
     showDialog({
       title: 'Remover esta foto?',
-      message: `A foto sai do anúncio na hora.${index === 0 && list.length > 1 ? ' A próxima foto vira a capa.' : ''}`,
+      message: `A foto sai do ${noun} na hora.${index === 0 && list.length > 1 ? ' A próxima foto vira a capa.' : ''}`,
       actions: [
         { label: 'Manter', kind: 'cancel' },
         {
@@ -100,8 +136,8 @@ export function EditPhotos({ anuncioId }: { anuncioId: string }) {
             setError('');
             setNotice('');
             try {
-              await myAdsApi.removePhoto(anuncioId, photo.id);
-              setNotice('Foto removida do anúncio.');
+              await remove(photo.id);
+              setNotice(`Foto removida do ${noun}.`);
               refresh();
             } catch (reason) {
               setError(reason instanceof Error ? reason.message : 'Não foi possível remover a foto.');
@@ -114,14 +150,14 @@ export function EditPhotos({ anuncioId }: { anuncioId: string }) {
     });
   }
 
-  if (photos.isError)
+  if (failed)
     return (
       <Notice
         tone="error"
-        message="Não carregamos as fotos do anúncio."
+        message={`Não carregamos as fotos do ${noun}.`}
         actionLabel="Tentar de novo"
-        actionLoading={photos.isFetching}
-        onAction={() => photos.refetch()}
+        actionLoading={retrying}
+        onAction={onRetry}
       />
     );
 
@@ -129,9 +165,10 @@ export function EditPhotos({ anuncioId }: { anuncioId: string }) {
     <View style={styles.root}>
       <AppText variant="caption" color="muted">
         Fotos são enviadas e removidas na hora, sem precisar salvar. A primeira é a capa.
+        {noun === 'lote' ? ' Elas aparecem em todos os carros do lote.' : ''}
       </AppText>
       <View style={styles.grid}>
-        {photos.isPending
+        {loading
           ? [0, 1, 2].map((key) => <Skeleton key={key} rounded={radius.md} style={styles.cell} />)
           : list.map((photo, index) => (
               <View key={photo.id} style={styles.cell}>
@@ -159,7 +196,7 @@ export function EditPhotos({ anuncioId }: { anuncioId: string }) {
                 </Pressable>
               </View>
             ))}
-        {!photos.isPending && free.length ? (
+        {!loading && free.length ? (
           <View style={[styles.cell, styles.add, { borderColor: colors.border, backgroundColor: colors.subtle }]}>
             {busy === 'upload' ? (
               <>

@@ -1,6 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import * as WebBrowser from 'expo-web-browser';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { BarChart3, Eye, Heart, MessageCircle, Users, WifiOff, type LucideIcon } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -70,8 +69,7 @@ export function StatsScreen() {
           </AppText>
           <Button
             label="Conhecer os planos"
-            onPress={() => WebBrowser.openBrowserAsync('https://phcauto.com/planos')}
-            accessibilityHint="Abre a página de planos do PHC Auto"
+            onPress={() => router.push('/planos')}
           />
         </View>
       );

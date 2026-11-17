@@ -35,6 +35,10 @@ type Props = {
   onYear: (year: string) => void;
   onResolved: (reference: FipeReference) => void;
   onClear: () => void;
+  /** Consulta avulsa (Tabela FIPE): "Zero km" aparece como ano, em vez de vir da condição do anúncio. */
+  zeroKmAsYear?: boolean;
+  /** A tela mostra o resultado do seu jeito (Tabela FIPE). */
+  hideReference?: boolean;
 };
 
 export function FipeSelector({
@@ -45,6 +49,8 @@ export function FipeSelector({
   onYear,
   onResolved,
   onClear,
+  zeroKmAsYear = false,
+  hideReference = false,
 }: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -97,8 +103,8 @@ export function FipeSelector({
     ),
   });
   const items = useMemo(
-    () => (options.data?.pages.flatMap((page) => page.opcoes) ?? []).filter((item) => open !== "year" || !item.codigo.startsWith("32000")),
-    [options.data, open],
+    () => (options.data?.pages.flatMap((page) => page.opcoes) ?? []).filter((item) => open !== "year" || zeroKmAsYear || !item.codigo.startsWith("32000")),
+    [options.data, open, zeroKmAsYear],
   );
   function show(level: Level) {
     Keyboard.dismiss();
@@ -249,7 +255,7 @@ export function FipeSelector({
               />
             </View>
           ) : null}
-          {reference ? (
+          {reference && !hideReference ? (
             <View
               style={[
                 styles.confirm,

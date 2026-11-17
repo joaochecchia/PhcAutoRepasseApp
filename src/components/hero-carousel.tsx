@@ -1,6 +1,5 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
 import { ArrowRight } from 'lucide-react-native';
 import { useEffect, useRef } from 'react';
 import { StyleSheet, useWindowDimensions, View, type FlatList } from 'react-native';
@@ -17,14 +16,14 @@ import Animated, {
 import { AppText } from '@/components/app-text';
 import { PressableScale } from '@/components/pressable-scale';
 import type { Banner } from '@/data/banners';
+import { openSiteLink } from '@/utils/site-link';
 import { radius, space } from '@/theme';
 
 const GAP = space.md;
-const AUTOPLAY_MS = 5000;
 
 /**
  * Carrossel de banners com foto. Com um item só, não mostra indicador nem gira.
- * Gira sozinho a cada 5 s e para enquanto a pessoa arrasta; parado com "reduzir movimento".
+ * Cada banner fica o tempo definido no painel; para enquanto a pessoa arrasta e com "reduzir movimento".
  */
 export function HeroCarousel({ items }: { items: Banner[] }) {
   const { width: screen } = useWindowDimensions();
@@ -43,13 +42,20 @@ export function HeroCarousel({ items }: { items: Banner[] }) {
 
   useEffect(() => {
     if (items.length < 2 || reduced) return;
+    let elapsed = 0;
     const timer = setInterval(() => {
-      if (dragging.current) return;
+      if (dragging.current) {
+        elapsed = 0;
+        return;
+      }
+      elapsed += 1;
+      if (elapsed < (items[index.current % items.length]?.duration ?? 5)) return;
+      elapsed = 0;
       index.current = (index.current + 1) % items.length;
       listRef.current?.scrollToOffset({ offset: index.current * snap, animated: true });
-    }, AUTOPLAY_MS);
+    }, 1000);
     return () => clearInterval(timer);
-  }, [items.length, reduced, snap, listRef]);
+  }, [items, reduced, snap, listRef]);
 
   return (
     <View>
@@ -74,34 +80,65 @@ export function HeroCarousel({ items }: { items: Banner[] }) {
         }}
         renderItem={({ item }) => (
           <PressableScale
-            scaleTo={0.985}
-            onPress={() => router.push(item.href)}
-            accessibilityRole="button"
+            scaleTo={item.link ? 0.985 : 1}
+            disabled={!item.link}
+            onPress={() => item.link && openSiteLink(item.link)}
+            accessibilityRole={item.link ? 'button' : 'image'}
             accessibilityLabel={item.accessibilityLabel}
             style={[styles.slide, { width, height }]}>
-            <Image source={item.image} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
-            {/* Escurece o canto do texto (embaixo à esquerda) para o título ter contraste sobre qualquer foto. */}
-            <LinearGradient
-              colors={['rgba(18,19,21,0.92)', 'rgba(18,19,21,0.55)', 'rgba(18,19,21,0)']}
-              locations={[0, 0.5, 1]}
-              start={{ x: 0, y: 1 }}
-              end={{ x: 0.85, y: 0.1 }}
-              style={styles.shade}
-            />
-            <View style={styles.copy}>
-              <AppText variant="overline" style={styles.eyebrow}>
-                {item.eyebrow}
-              </AppText>
-              <AppText variant="title" style={styles.title} numberOfLines={2}>
-                {item.title}
-              </AppText>
-              <View style={styles.cta}>
-                <AppText variant="label" style={styles.ctaText}>
-                  {item.cta}
-                </AppText>
-                <ArrowRight size={16} color="#fff" />
-              </View>
-            </View>
+            {item.fit === 'contain' ? (
+              <>
+                {/* Imagem inteira: o fundo é a própria foto desfocada, como no site. */}
+                <Image source={item.image} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={24} />
+                <Image source={item.image} style={StyleSheet.absoluteFill} contentFit="contain" accessibilityIgnoresInvertColors />
+              </>
+            ) : (
+              <Image
+                source={item.image}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+                contentPosition={item.focus}
+                transition={200}
+                accessibilityIgnoresInvertColors
+              />
+            )}
+            {item.showText ? (
+              <>
+                {/* Escurece o canto do texto (embaixo à esquerda) para o título ter contraste sobre qualquer foto. */}
+                <LinearGradient
+                  colors={['rgba(18,19,21,0.92)', 'rgba(18,19,21,0.55)', 'rgba(18,19,21,0)']}
+                  locations={[0, 0.5, 1]}
+                  start={{ x: 0, y: 1 }}
+                  end={{ x: 0.85, y: 0.1 }}
+                  style={styles.shade}
+                />
+                <View style={styles.copy}>
+                  {item.eyebrow ? (
+                    <AppText variant="overline" style={styles.eyebrow}>
+                      {item.eyebrow}
+                    </AppText>
+                  ) : null}
+                  {item.title ? (
+                    <AppText variant="title" style={styles.title} numberOfLines={2}>
+                      {item.title}
+                    </AppText>
+                  ) : null}
+                  {item.subtitle ? (
+                    <AppText variant="caption" style={styles.title} numberOfLines={2}>
+                      {item.subtitle}
+                    </AppText>
+                  ) : null}
+                  {item.cta && item.link ? (
+                    <View style={styles.cta}>
+                      <AppText variant="label" style={styles.ctaText}>
+                        {item.cta}
+                      </AppText>
+                      <ArrowRight size={16} color="#fff" />
+                    </View>
+                  ) : null}
+                </View>
+              </>
+            ) : null}
           </PressableScale>
         )}
       />

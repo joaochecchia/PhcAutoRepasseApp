@@ -50,6 +50,7 @@ export type FipeReference = {
   combustivel: string;
   valorCentavos: number;
   mesReferencia: string;
+  codigoFipe?: string;
 };
 export type UploadFile = { uri: string; name: string; type: string };
 export type FipeQuota = {

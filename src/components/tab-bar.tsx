@@ -8,6 +8,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { PressableScale } from '@/components/pressable-scale';
 import { useFavorites } from '@/hooks/use-favorites';
+import { useNoticesSummary } from '@/hooks/use-notices';
 import { useTheme } from '@/hooks/use-theme';
 import { fonts, space } from '@/theme';
 
@@ -28,7 +29,8 @@ const CENTER_SIZE = 58;
  */
 export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: BottomTabBarProps) {
   const { colors } = useTheme();
-  const { items } = useFavorites();
+  const { ids } = useFavorites();
+  const notices = useNoticesSummary().data?.naoLidos ?? 0;
 
   return (
     <View
@@ -44,7 +46,8 @@ export function TabBar({ state, descriptors, emitter, navigateToTab, insets }: B
         const Icon = config.icon;
         const color = focused ? colors.red : colors.muted;
         const options = descriptors[route.key]?.options;
-        const badge = route.name === 'favoritos' && items.length > 0 ? items.length : null;
+        const badge =
+          route.name === 'favoritos' && ids.length > 0 ? ids.length : route.name === 'menu' && notices > 0 ? notices : null;
 
         const onPress = () => {
           const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });

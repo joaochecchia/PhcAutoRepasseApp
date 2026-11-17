@@ -7,8 +7,9 @@ import { FlatList, RefreshControl, ScrollView, StyleSheet, useWindowDimensions, 
 import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fetchHome, fetchPlatformNumbers, searchAds } from '@/api/ads';
-import { apiOrigin } from '@/api/client';
+import { fetchHome, fetchHomeBanners, fetchPlatformNumbers, searchAds, type HomeBanner } from '@/api/ads';
+import { useChatUnread } from '@/api/chat-socket';
+import { apiOrigin, mediaUrl } from '@/api/client';
 import type { SearchAd } from '@/api/contracts';
 import { AppText } from '@/components/app-text';
 import { Chip } from '@/components/chip';
@@ -19,7 +20,7 @@ import { ShowcaseTabs } from '@/components/showcase-tabs';
 import { Skeleton } from '@/components/skeleton';
 import { StateView } from '@/components/state-view';
 import { VehicleCard, VehicleCardSkeleton } from '@/components/vehicle-card';
-import { banners } from '@/data/banners';
+import { fallbackBanners, type Banner } from '@/data/banners';
 import { priceRanges, showcaseTabs, SOLD_TAB, vehicleTypes } from '@/data/catalog';
 import { useIntroProgress } from '@/hooks/use-intro';
 import { useTheme } from '@/hooks/use-theme';
@@ -35,6 +36,11 @@ export function Home() {
 
   const home = useQuery({ queryKey: ['home'], queryFn: ({ signal }) => fetchHome(signal) });
   const numbers = useQuery({ queryKey: ['numbers'], queryFn: ({ signal }) => fetchPlatformNumbers(signal) });
+  const unread = useChatUnread();
+  // Banners cadastrados no painel; sem eles (ou com falha), os locais seguram o espaço.
+  const banners = useQuery({ queryKey: ['home-banners'], queryFn: ({ signal }) => fetchHomeBanners(signal) });
+  const serverBanners = (banners.data ?? []).filter((banner) => banner.exibirEm !== 'COMPUTADOR').map(toBanner);
+  const heroItems = serverBanners.length ? serverBanners : fallbackBanners;
   const condition = showcase && showcase !== SOLD_TAB ? showcase : null;
   const byCondition = useQuery({
     queryKey: ['showcase', condition],
@@ -96,9 +102,16 @@ export function Home() {
             <PressableScale
               onPress={() => router.push('/mensagens' as Href)}
               accessibilityRole="button"
-              accessibilityLabel="Mensagens"
+              accessibilityLabel={unread ? `Mensagens, ${unread} não lidas` : 'Mensagens'}
               style={[styles.roundButton, { backgroundColor: colors.subtle }]}>
               <MessagesSquare size={22} color={colors.text} />
+              {unread ? (
+                <View style={[styles.unread, { backgroundColor: colors.red, borderColor: colors.bg }]}>
+                  <AppText variant="label" color="onRed" style={styles.unreadText}>
+                    {unread > 99 ? '99+' : unread}
+                  </AppText>
+                </View>
+              ) : null}
             </PressableScale>
           </View>
         </View>
@@ -107,7 +120,7 @@ export function Home() {
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.red} colors={[colors.red]} />}>
-          <HeroCarousel items={banners} />
+          <HeroCarousel items={heroItems} />
 
           <Numbers loading={numbers.isPending} anunciados={numbers.data?.anunciados} vendidos={numbers.data?.vendidos} />
 
@@ -259,6 +272,19 @@ function Showcase({
 }
 
 const styles = StyleSheet.create({
+  unread: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadText: { fontSize: 10, lineHeight: 12 },
   root: { flex: 1 },
   flex: { flex: 1 },
   header: { paddingHorizontal: space.lg, paddingBottom: space.md, gap: space.md },
@@ -295,3 +321,22 @@ const styles = StyleSheet.create({
   pricePill: { paddingHorizontal: space.xl, minHeight: 48, justifyContent: 'center', borderRadius: radius.md },
   tiles: { paddingHorizontal: space.lg, gap: space.lg },
 });
+
+function toBanner(banner: HomeBanner): Banner {
+  const mobile = Boolean(banner.imagemCelularUrl);
+  const x = mobile ? banner.focoXCelular : banner.focoX;
+  const y = mobile ? banner.focoYCelular : banner.focoY;
+  return {
+    id: banner.id,
+    image: { uri: mediaUrl(banner.imagemCelularUrl ?? banner.imagemUrl)! },
+    showText: banner.exibirTexto,
+    title: banner.titulo ?? undefined,
+    subtitle: banner.subtitulo ?? undefined,
+    cta: banner.textoBotao ?? (banner.link ? 'Saiba mais' : undefined),
+    link: banner.link,
+    fit: banner.ajuste === 'INTEIRA' ? 'contain' : 'cover',
+    focus: { left: `${x}%`, top: `${y}%` },
+    duration: Math.min(20, Math.max(3, banner.duracaoSegundos || 5)),
+    accessibilityLabel: banner.textoAlternativo || banner.titulo || 'Banner',
+  };
+}

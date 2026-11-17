@@ -12,11 +12,12 @@ import {
   PencilLine,
   Send,
   SlidersHorizontal,
+  TicketPercent,
   Trash2,
   WifiOff,
 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -40,9 +41,10 @@ import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
 import { formatCents } from '@/utils/format';
 import { MyAdCard, StatusPill, statusLabels } from './my-ad-card';
+import { PromotionsPanel } from './promotions';
 import { ActionsSheet, FiltersSheet, hasListFilters, RetireSheet, type ListFilters, type SheetAction } from './sheets';
 
-type Tab = AdStatus | 'TODOS' | 'LOTES';
+type Tab = AdStatus | 'TODOS' | 'LOTES' | 'PROMOCOES';
 const extraStatuses: AdStatus[] = ['PAUSADO', 'RESERVADO', 'VENDIDO', 'ARQUIVADO'];
 
 function toApiFilters(tab: Tab, filters: ListFilters): MyAdsFilters {
@@ -50,7 +52,7 @@ function toApiFilters(tab: Tab, filters: ListFilters): MyAdsFilters {
     ? new Date(Date.now() - filters.periodo * 86_400_000).toISOString().slice(0, 10)
     : undefined;
   return {
-    status: tab === 'TODOS' || tab === 'LOTES' ? undefined : tab,
+    status: tab === 'TODOS' || tab === 'LOTES' || tab === 'PROMOCOES' ? undefined : tab,
     marca: filters.marca?.trim() || undefined,
     modelo: filters.modelo?.trim() || undefined,
     precoMinimoCentavos: filters.precoMinimo ? Number(filters.precoMinimo) * 100 : undefined,
@@ -84,7 +86,7 @@ export function MyAdsScreen() {
     initialPageParam: 0,
     queryFn: ({ pageParam, signal }) => myAdsApi.list(pageParam, signal, apiFilters),
     getNextPageParam: (page) => (page.temProximaPagina || page.temMais ? page.pagina + 1 : undefined),
-    enabled: tab !== 'LOTES',
+    enabled: tab !== 'LOTES' && tab !== 'PROMOCOES',
   });
   const quota = useQuery({ queryKey: ['ad-quota'], queryFn: ({ signal }) => myAdsApi.quota(signal) });
   const renewals = useQuery({ queryKey: ['ad-renewals'], queryFn: ({ signal }) => myAdsApi.renewals(signal) });
@@ -148,22 +150,20 @@ export function MyAdsScreen() {
   }
 
   function openEdit(ad: MyAd) {
-    if (ad.loteId) {
-      showDialog({
-        title: 'Carro de lote',
-        message: 'Este carro faz parte de um lote. Os dados comuns e a lista de carros são editados no lote, que ainda não está no app.',
-      });
-      return;
-    }
-    router.push(`/meus-anuncios/${ad.id}` as Href);
+    // Carro de lote: os dados comuns e a lista de carros são editados no lote.
+    router.push((ad.loteId ? `/meus-anuncios/lote/${ad.loteId}` : `/meus-anuncios/${ad.id}`) as Href);
   }
 
   function actionsFor(ad: MyAd): SheetAction[] {
     const published = ad.status === 'PUBLICADO';
     const quotaRenew = renewals.data;
     const list: SheetAction[] = [];
-    if (!ad.loteId)
-      list.push({ key: 'edit', label: 'Editar', icon: PencilLine, onPress: () => openEdit(ad) });
+    list.push({
+      key: 'edit',
+      label: ad.loteId ? 'Editar lote' : 'Editar',
+      icon: PencilLine,
+      onPress: () => openEdit(ad),
+    });
     if (published)
       list.push({
         key: 'view',
@@ -230,6 +230,7 @@ export function MyAdsScreen() {
       .filter((status) => (counts[status] ?? 0) > 0 || tab === status)
       .map((status): [Tab, string, number | undefined] => [status, statusLabels[status], counts[status] ?? 0]),
     ['LOTES', 'Lotes', lots.data?.length],
+    ['PROMOCOES', 'Promoções', undefined],
   ];
   const items = ads.data?.pages.flatMap((page) => page.anuncios) ?? [];
   const activeFilters = Object.values(filters).filter((value) => value !== undefined && value !== '').length;
@@ -277,7 +278,13 @@ export function MyAdsScreen() {
             key={value}
             label={count === undefined ? label : `${label} · ${count}`}
             selected={tab === value}
-            icon={value === 'LOTES' ? <Layers size={14} color={tab === value ? colors.red : colors.text} /> : undefined}
+            icon={
+              value === 'LOTES' ? (
+                <Layers size={14} color={tab === value ? colors.red : colors.text} />
+              ) : value === 'PROMOCOES' ? (
+                <TicketPercent size={14} color={tab === value ? colors.red : colors.text} />
+              ) : undefined
+            }
             onPress={() => setTab(value)}
           />
         ))}
@@ -288,7 +295,7 @@ export function MyAdsScreen() {
           accessibilityLabel="Estatísticas de todos os anúncios"
         />
       </ScrollView>
-      {tab !== 'LOTES' ? (
+      {tab !== 'LOTES' && tab !== 'PROMOCOES' ? (
         <View style={styles.filterRow}>
           <Pressable
             onPress={() => setFiltersOpen(true)}
@@ -356,6 +363,26 @@ export function MyAdsScreen() {
     </>
   );
 
+  if (tab === 'PROMOCOES')
+    return (
+      <>
+        <ScrollView
+          style={{ backgroundColor: colors.bg }}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xl }]}
+          refreshControl={
+            <RefreshControl
+              refreshing={false}
+              tintColor={colors.red}
+              colors={[colors.red]}
+              onRefresh={() => cache.invalidateQueries({ queryKey: ['my-promotions'] })}
+            />
+          }>
+          <PromotionsPanel header={header} />
+        </ScrollView>
+        {sheets}
+      </>
+    );
+
   if (tab === 'LOTES')
     return (
       <>
@@ -388,7 +415,7 @@ export function MyAdsScreen() {
               <StateView
                 icon={Layers}
                 title="Você ainda não tem lotes"
-                message='Em Anunciar, escolha Carro e "Lote de carros" para publicar vários carros do mesmo modelo numa página só.'
+                message="Em Anunciar, escolha Carro e “Lote de carros” para publicar vários carros do mesmo modelo numa página só."
                 compact
               />
             )
@@ -499,10 +526,12 @@ function LotRow({ lot }: { lot: MyLot }) {
   const status: AdStatus =
     lot.disponiveis > 0 ? 'PUBLICADO' : lot.total > 0 && lot.vendidos === lot.total ? 'VENDIDO' : 'RASCUNHO';
   return (
-    <View
-      accessible
+    <Pressable
+      onPress={() => router.push(`/meus-anuncios/lote/${lot.id}` as Href)}
+      accessibilityRole="button"
       accessibilityLabel={`Lote ${lot.titulo}, ${lot.disponiveis} de ${lot.total} carros à venda, ${formatCents(lot.precoCentavos)} cada`}
-      style={[styles.lot, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      accessibilityHint="Abre a edição do lote"
+      style={({ pressed }) => [styles.lot, { backgroundColor: pressed ? colors.subtle : colors.surface, borderColor: colors.border }]}>
       <VehiclePhoto path={lot.fotoUrl} recyclingKey={lot.id} style={styles.lotPhoto} />
       <View style={styles.flex}>
         <AppText variant="bodyStrong" numberOfLines={2}>
@@ -521,7 +550,7 @@ function LotRow({ lot }: { lot: MyLot }) {
           <StatusPill status={status} />
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 

@@ -1,9 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
+import { router, useFocusEffect } from 'expo-router';
 import { ArrowLeft, LockKeyhole, MailCheck } from 'lucide-react-native';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -28,16 +27,17 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { authApi } from '@/api/auth';
+import { authHandoff } from '@/api/auth-handoff';
 import { ApiError } from '@/api/client';
 import { signInWithGoogle } from '@/api/google';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { GoogleButton } from '@/components/google-button';
 import { TextField } from '@/components/text-field';
+import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
 import { fonts, radius, space } from '@/theme';
 
-const SITE = 'https://phcauto.com';
 type Challenge = { id: string; email: string | null };
 
 function errorMessage(error: unknown, fallback: string) {
@@ -68,6 +68,31 @@ export function Login() {
   const senhaRef = useRef<TextInputInstance>(null);
   const shake = useSharedValue(0);
   const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shake.get() }] }));
+  const session = useSession();
+  const closed = useRef(false);
+
+  /** Fecha o login uma vez só, venha a sessão daqui ou do cadastro aberto por cima. */
+  const close = useCallback(() => {
+    if (closed.current) return;
+    closed.current = true;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    router.back();
+  }, []);
+  useEffect(() => {
+    if (session.status === 'authenticated') close();
+  }, [session.status, close]);
+
+  // Conta recém-criada que pediu o código por e-mail: abre direto na etapa do código.
+  useFocusEffect(
+    useCallback(() => {
+      const pending = authHandoff.takePendingCode();
+      if (!pending) return;
+      setChallenge({ id: pending.challengeId, email: pending.email });
+      setNotice(`Conta criada. Enviamos um código de 6 dígitos para ${pending.email ?? 'seu e-mail'}.`);
+      setResendIn(60);
+      setError('');
+    }, []),
+  );
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -76,8 +101,7 @@ export function Login() {
   }, [resendIn]);
 
   function done() {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.back();
+    close();
   }
 
   function fail(message: string) {
@@ -145,9 +169,8 @@ export function Login() {
       if (outcome.kind === 'authenticated') return done();
       if (outcome.kind === 'error') fail(outcome.message);
       if (outcome.kind === 'new-account') {
-        setNotice(
-          'Esta conta Google ainda não tem cadastro na PHC Auto. O cadastro pelo app chega na próxima versão; por enquanto, crie a conta no site.',
-        );
+        authHandoff.setSocial({ ticket: outcome.ticket, verifier: outcome.verifier });
+        router.push('/cadastro');
       }
     } catch (requestError) {
       fail(errorMessage(requestError, 'Não foi possível entrar com Google.'));
@@ -200,7 +223,7 @@ export function Login() {
               />
             </Animated.View>
             <Pressable
-              onPress={() => WebBrowser.openBrowserAsync(`${SITE}/redefinir-senha`)}
+              onPress={() => router.push('/redefinir-senha')}
               hitSlop={10}
               accessibilityRole="link"
               style={styles.link}>
@@ -309,10 +332,10 @@ export function Login() {
             <View style={styles.flex}>
               <AppText variant="bodyStrong">Ainda não tem conta?</AppText>
               <AppText variant="caption" color="muted">
-                O cadastro abre no site e leva 2 minutos.
+                Leva 2 minutos, com CPF ou CNPJ.
               </AppText>
             </View>
-            <Button label="Criar conta" variant="secondary" onPress={() => WebBrowser.openBrowserAsync(`${SITE}/cadastro`)} />
+            <Button label="Criar conta" variant="secondary" onPress={() => router.push('/cadastro')} />
           </View>
         ) : null}
 

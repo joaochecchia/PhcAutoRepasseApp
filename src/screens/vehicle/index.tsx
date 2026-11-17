@@ -4,25 +4,37 @@ import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import {
   BadgeCheck,
+  BarChart3,
   Calendar,
-  CarFront,
+  ChevronRight,
   ChevronLeft,
+  Clock3,
   Fuel,
+  FileText,
   Gauge,
+  Gavel,
+  Layers,
   Lock,
   MapPin,
   MessagesSquare,
+  PencilLine,
   Phone,
+  Ruler,
   Settings2,
   Share2,
   ShieldCheck,
   TrendingDown,
   TrendingUp,
+  TriangleAlert,
   UserRound,
+  Users,
   WifiOff,
+  Wrench,
+  Zap,
 } from 'lucide-react-native';
-import { useState } from 'react';
-import { FlatList, Linking, Pressable, Share, StyleSheet, useWindowDimensions, View } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import { useEffect, useState } from 'react';
+import { Linking, Pressable, Share, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
   interpolate,
   useAnimatedScrollHandler,
@@ -31,34 +43,61 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fetchAd, fetchAdPhotos, fetchContactChannels, fetchPublicProfile, requestWhatsappContact } from '@/api/ads';
+import {
+  fetchAd,
+  fetchAdMedia,
+  fetchAdPhotos,
+  fetchContactChannels,
+  fetchPublicProfile,
+  recordAdView,
+  requestWhatsappContact,
+  revealAdFipe,
+} from '@/api/ads';
+import { announceApi } from '@/api/announce';
 import { chatApi } from '@/api/chat';
 import { mediaUrl } from '@/api/client';
-import type { AdDetail, AdPhoto, SearchAd } from '@/api/contracts';
+import type { AdDetail, AdFipe, AdPhoto, MediaFile, SearchAd } from '@/api/contracts';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { showDialog } from '@/components/dialog';
 import { FavoriteButton } from '@/components/favorite-button';
+import { Notice } from '@/components/notice';
+import { VehiclePromotions } from '@/components/promotions';
 import { Skeleton } from '@/components/skeleton';
 import { StateView } from '@/components/state-view';
+import { MediaGallery } from '@/components/media-gallery';
 import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
-import { conditionLabels, formatCents, formatKm, formatLocation, formatPrice, formatYears, humanize } from '@/utils/format';
+import { conditionLabels, formatCents, formatCount, formatKm, formatLocation, formatPrice, formatYears, humanize } from '@/utils/format';
 import { radius, space } from '@/theme';
 
-const specLabels: [key: string, label: string][] = [
-  ['carroceria', 'Carroceria'],
-  ['motorizacao', 'Motorização'],
-  ['tracao', 'Tração'],
-  ['tipoDirecao', 'Direção'],
-  ['numeroPortas', 'Portas'],
-  ['numeroLugares', 'Lugares'],
-  ['cilindradas', 'Cilindrada (cc)'],
-  ['unicoDono', 'Único dono'],
-  ['ipvaPago', 'IPVA pago'],
-  ['licenciado', 'Licenciado'],
-  ['blindado', 'Blindado'],
+/** Ficha técnica por tipo, como no site. Número de série e registro marítimo identificam o bem e ficam fora. */
+const technicalFields: [key: string, label: string, suffix?: string][] = [
+  ['quilometragem', 'Quilometragem', ' km'], ['carroceria', 'Carroceria'], ['tipoCabine', 'Cabine'],
+  ['cambio', 'Câmbio'], ['combustivel', 'Combustível'], ['motorizacao', 'Motorização'],
+  ['cilindradas', 'Cilindradas', ' cc'], ['categoria', 'Categoria'],
+  ['partida', 'Partida'], ['refrigeracao', 'Refrigeração'], ['configuracao', 'Configuração'],
+  ['tracao', 'Tração'], ['tipoDirecao', 'Direção'], ['numeroEixos', 'Eixos'], ['numeroPortas', 'Portas'],
+  ['numeroLugares', 'Lugares'], ['capacidadeCargaKg', 'Capacidade de carga', ' kg'],
+  ['pesoBrutoTotalKg', 'Peso bruto total', ' kg'], ['implemento', 'Implemento'], ['tamanhoPes', 'Tamanho', ' pés'],
+  ['estilo', 'Estilo'], ['materialCasco', 'Material do casco'], ['capacidadePessoas', 'Capacidade', ' pessoas'],
+  ['numeroCabines', 'Cabines'], ['horasUso', 'Horas de uso', ' h'], ['tipoMaquina', 'Tipo de máquina'],
+  ['horimetro', 'Horímetro', ' h'], ['pesoOperacionalKg', 'Peso operacional', ' kg'], ['potenciaHp', 'Potência', ' cv'],
+  ['tipoEsteiraOuPneu', 'Rodagem'], ['capacidadeCacambaM3', 'Caçamba', ' m³'],
 ];
+const additionalFields: [key: string, label: string][] = [
+  ['unicoDono', 'Único dono'], ['ipvaPago', 'IPVA pago'], ['licenciado', 'Licenciado'], ['blindado', 'Blindado'],
+];
+/** Zero km não tem placa, quilometragem nem histórico de dono (mesma lista do site). */
+const zeroKmHiddenFields = ['quilometragem', 'placa', 'exibirPlacaCompleta', 'ipvaPago', 'licenciado', 'unicoDono'];
+
+/** Valor da ficha como o site mostra: número com milhar, booleano em Sim/Não, enum legível. */
+function shown(value: unknown, suffix = ''): string | null {
+  if (value == null || value === '') return null;
+  if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
+  if (typeof value === 'number') return `${formatCount(value)}${suffix}`;
+  return `${humanize(String(value)) ?? String(value)}${suffix}`;
+}
 
 export function VehicleDetail({ id }: { id: string }) {
   const { colors } = useTheme();
@@ -74,6 +113,21 @@ export function VehicleDetail({ id }: { id: string }) {
     queryFn: ({ signal }) => fetchPublicProfile(ad.data!.anuncianteId, signal),
     enabled: Boolean(ad.data?.anuncianteId),
   });
+  // Vídeo e laudo são extras: sem eles (ou com falha), a página segue só com as fotos.
+  const media = useQuery({ queryKey: ['ad-media-public', id], queryFn: ({ signal }) => fetchAdMedia(id, signal) });
+  const session = useSession();
+  const signedIn = session.status === 'authenticated';
+  const ownAd = session.status === 'authenticated' && ad.data?.anuncianteId === session.user.usuarioId;
+  const loaded = Boolean(ad.data);
+  // Conta a visita para as estatísticas do anunciante (o backend ignora repetições e o próprio dono).
+  useEffect(() => {
+    if (loaded && session.status !== 'loading') recordAdView(id, session.status === 'authenticated');
+  }, [id, loaded, session.status]);
+  const video = media.data?.video?.status === 'PRONTO' && media.data.video.url ? media.data.video : null;
+  const report = media.data?.laudo?.url ? media.data.laudo : null;
+  const openStore = seller.data?.slug
+    ? () => router.push({ pathname: '/loja/[slug]', params: { slug: seller.data!.slug! } })
+    : undefined;
 
   const onScroll = useAnimatedScrollHandler((event) => {
     scrollY.set(event.contentOffset.y);
@@ -112,7 +166,14 @@ export function VehicleDetail({ id }: { id: string }) {
       ) : (
         <Animated.ScrollView onScroll={onScroll} scrollEventThrottle={16} contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}>
           <Animated.View style={[{ height: galleryHeight }, galleryStyle]}>
-            <Gallery photos={photos.data} loading={photos.isPending} width={width} height={galleryHeight} />
+            <MediaGallery
+              photos={photos.data}
+              video={video}
+              title={detail ? `${detail.fabricante} ${detail.modelo}` : 'veículo'}
+              loading={photos.isPending}
+              width={width}
+              height={galleryHeight}
+            />
           </Animated.View>
 
           <View style={[styles.sheet, { backgroundColor: colors.bg }]}>
@@ -120,6 +181,25 @@ export function VehicleDetail({ id }: { id: string }) {
               <DetailSkeleton />
             ) : (
               <>
+                {detail.loteId ? (
+                  <Pressable
+                    onPress={() => router.push({ pathname: '/lote/[id]', params: { id: detail.loteId! } })}
+                    accessibilityRole="button"
+                    accessibilityLabel="Este carro faz parte de um lote. Ver o lote"
+                    style={({ pressed }) => [
+                      styles.lotBanner,
+                      { backgroundColor: pressed ? colors.subtle : colors.surface, borderColor: colors.border },
+                    ]}>
+                    <Layers size={20} color={colors.red} />
+                    <View style={styles.flex}>
+                      <AppText variant="bodyStrong">Este carro faz parte de um lote</AppText>
+                      <AppText variant="caption" color="muted">
+                        Veja os outros carros do mesmo modelo, versão e ano.
+                      </AppText>
+                    </View>
+                    <ChevronRight size={20} color={colors.muted} />
+                  </Pressable>
+                ) : null}
                 <View style={styles.block}>
                   <View style={styles.tags}>
                     {detail.condicao ? <Tag text={conditionLabels[detail.condicao] ?? humanize(detail.condicao) ?? ''} /> : null}
@@ -142,8 +222,14 @@ export function VehicleDetail({ id }: { id: string }) {
                   {detail.aceitaTroca ? <AppText variant="caption" color="muted">Aceita troca</AppText> : null}
                 </View>
 
+                <VehiclePromotions
+                  sellerId={detail.anuncianteId}
+                  anuncioId={detail.id}
+                  loteId={detail.loteId}
+                  onOpenStore={openStore}
+                />
                 <QuickFacts detail={detail} />
-                <FipeBlock detail={detail} />
+                <FipeBlock detail={detail} signedIn={signedIn} />
 
                 <View style={styles.block}>
                   <AppText variant="title">Ficha técnica</AppText>
@@ -161,14 +247,9 @@ export function VehicleDetail({ id }: { id: string }) {
                   </View>
                 </View>
 
-                {detail.historicoLeilao === false && detail.historicoSinistro === false ? (
-                  <View style={[styles.trust, { backgroundColor: colors.dealTint, borderColor: colors.dealBorder }]}>
-                    <ShieldCheck size={22} color={colors.deal} />
-                    <AppText color="deal" variant="bodyStrong" style={styles.flex}>
-                      Sem histórico de leilão ou sinistro informado
-                    </AppText>
-                  </View>
-                ) : null}
+                <History detail={detail} hasReport={Boolean(report)} />
+
+                {report ? <ReportCard report={report} /> : null}
 
                 {detail.descricao ? (
                   <View style={styles.block}>
@@ -177,7 +258,12 @@ export function VehicleDetail({ id }: { id: string }) {
                   </View>
                 ) : null}
 
-                <View style={[styles.seller, { backgroundColor: colors.subtle }]}>
+                <Pressable
+                  disabled={!openStore}
+                  onPress={openStore}
+                  accessibilityRole={openStore ? 'button' : undefined}
+                  accessibilityHint={openStore ? 'Abre a página da loja' : undefined}
+                  style={[styles.seller, { backgroundColor: colors.subtle }]}>
                   <View style={[styles.avatar, { backgroundColor: colors.surface }]}>
                     {seller.data?.fotoUrl ? (
                       <Image source={{ uri: mediaUrl(seller.data.fotoUrl)! }} style={styles.avatarImage} />
@@ -197,7 +283,8 @@ export function VehicleDetail({ id }: { id: string }) {
                       </AppText>
                     </View>
                   </View>
-                </View>
+                  {openStore ? <ChevronRight size={20} color={colors.muted} /> : null}
+                </Pressable>
               </>
             )}
           </View>
@@ -227,7 +314,13 @@ export function VehicleDetail({ id }: { id: string }) {
         {favoriteShape ? <FavoriteButton ad={favoriteShape} size={40} onImage /> : <View style={styles.placeholder} />}
       </View>
 
-      {detail ? <ContactBar adId={detail.id} bottomInset={insets.bottom} /> : null}
+      {detail ? (
+        ownAd ? (
+          <OwnerBar adId={detail.id} title={detail.titulo} bottomInset={insets.bottom} />
+        ) : (
+          <ContactBar adId={detail.id} bottomInset={insets.bottom} />
+        )
+      ) : null}
     </View>
   );
 }
@@ -254,9 +347,11 @@ function ContactBar({ adId, bottomInset }: { adId: string; bottomInset: number }
   });
   const signedIn = session.status === 'authenticated';
   const whatsappOff = channels.data ? !channels.data.whatsapp : false;
+  const chatOff = channels.data ? !channels.data.chat : false;
 
   return (
     <View style={[styles.cta, { paddingBottom: bottomInset + space.md, backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+      {chatOff ? null : (
       <Button
         label="Conversar"
         variant="secondary"
@@ -265,6 +360,7 @@ function ContactBar({ adId, bottomInset }: { adId: string; bottomInset: number }
         loading={startChat.isPending}
         style={styles.flex}
       />
+      )}
       <Button
         label={whatsappOff ? 'Sem WhatsApp' : 'WhatsApp'}
         icon={<Phone size={18} color={colors.onRed} />}
@@ -278,6 +374,50 @@ function ContactBar({ adId, bottomInset }: { adId: string; bottomInset: number }
   );
 }
 
+/** O anunciante vendo o próprio anúncio: atalhos para editar e acompanhar, no lugar do contato. */
+function OwnerBar({ adId, title, bottomInset }: { adId: string; title: string; bottomInset: number }) {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.cta, { paddingBottom: bottomInset + space.md, backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+      <Button
+        label="Estatísticas"
+        variant="secondary"
+        icon={<BarChart3 size={18} color={colors.text} />}
+        onPress={() => router.push({ pathname: '/meus-anuncios/estatisticas', params: { anuncioId: adId, titulo: title } })}
+        style={styles.flex}
+      />
+      <Button
+        label="Editar anúncio"
+        icon={<PencilLine size={18} color={colors.onRed} />}
+        onPress={() => router.push(`/meus-anuncios/${adId}` as Href)}
+        style={styles.flex}
+      />
+    </View>
+  );
+}
+
+function ReportCard({ report }: { report: MediaFile }) {
+  const { colors } = useTheme();
+  const size = `${Math.max(1, Math.round(report.tamanhoBytes / 1024 / 1024))} MB`;
+  return (
+    <View style={[styles.report, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <FileText size={22} color={colors.red} />
+      <View style={styles.flex}>
+        <AppText variant="bodyStrong">Laudo cautelar</AppText>
+        <AppText variant="caption" color="muted">
+          Enviado pelo anunciante · {size}
+        </AppText>
+      </View>
+      <Button
+        label="Abrir"
+        variant="secondary"
+        accessibilityHint="Abre o laudo cautelar do veículo"
+        onPress={() => WebBrowser.openBrowserAsync(mediaUrl(report.url)!)}
+      />
+    </View>
+  );
+}
+
 function RoundButton({ label, onPress, children }: { label: string; onPress: () => void; children: React.ReactNode }) {
   return (
     <Pressable onPress={onPress} hitSlop={8} accessibilityRole="button" accessibilityLabel={label} style={styles.round}>
@@ -286,56 +426,31 @@ function RoundButton({ label, onPress, children }: { label: string; onPress: () 
   );
 }
 
-function Gallery({ photos, loading, width, height }: { photos?: AdPhoto[]; loading: boolean; width: number; height: number }) {
-  const { colors } = useTheme();
-  const [index, setIndex] = useState(0);
-  if (loading) return <Skeleton width={width} height={height} rounded={0} />;
-  if (!photos?.length) {
-    return (
-      <View style={[styles.noPhoto, { width, height, backgroundColor: colors.subtle }]}>
-        <CarFront size={48} color={colors.muted} strokeWidth={1.4} />
-        <AppText color="muted">Sem fotos</AppText>
-      </View>
-    );
-  }
-  return (
-    <View>
-      <FlatList
-        data={photos}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        keyExtractor={(photo) => photo.id}
-        onMomentumScrollEnd={(event) => setIndex(Math.round(event.nativeEvent.contentOffset.x / width))}
-        renderItem={({ item, index: i }) => (
-          <Image
-            source={{ uri: mediaUrl(item.url)! }}
-            style={{ width, height, backgroundColor: colors.subtle }}
-            contentFit="cover"
-            transition={200}
-            accessibilityLabel={item.textoAlternativo ?? `Foto ${i + 1} de ${photos.length}`}
-          />
-        )}
-      />
-      {photos.length > 1 ? (
-        <View style={styles.counter}>
-          <AppText variant="label" style={styles.counterText}>
-            {index + 1}/{photos.length}
-          </AppText>
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
 function QuickFacts({ detail }: { detail: AdDetail }) {
   const { colors } = useTheme();
   const d = detail.detalhes ?? {};
+  // Barco e linha amarela não têm quilometragem nem câmbio: o destaque segue o tipo, como no site.
+  const byType =
+    detail.tipoVeiculo === 'BARCO'
+      ? [
+          { icon: Clock3, label: 'Horas', value: shown(d.horasUso, ' h') },
+          { icon: Ruler, label: 'Tamanho', value: shown(d.tamanhoPes, ' pés') },
+          { icon: Users, label: 'Capacidade', value: shown(d.capacidadePessoas, ' pessoas') },
+        ]
+      : detail.tipoVeiculo === 'LINHA_AMARELA'
+        ? [
+            { icon: Clock3, label: 'Horímetro', value: shown(d.horimetro, ' h') },
+            { icon: Wrench, label: 'Máquina', value: shown(d.tipoMaquina) },
+            { icon: Zap, label: 'Potência', value: shown(d.potenciaHp, ' cv') },
+          ]
+        : [
+            { icon: Gauge, label: 'KM', value: formatKm(typeof d.quilometragem === 'number' ? d.quilometragem : null) },
+            { icon: Settings2, label: 'Câmbio', value: humanize(d.cambio as string) },
+            { icon: Fuel, label: 'Combustível', value: humanize(d.combustivel as string) },
+          ];
   const facts = [
     { icon: Calendar, label: 'Ano', value: formatYears(detail.anoFabricacao, detail.anoModelo) },
-    { icon: Gauge, label: 'KM', value: formatKm(typeof d.quilometragem === 'number' ? d.quilometragem : null) },
-    { icon: Settings2, label: 'Câmbio', value: humanize(d.cambio as string) },
-    { icon: Fuel, label: 'Combustível', value: humanize(d.combustivel as string) },
+    ...byType,
     { icon: MapPin, label: 'Cidade', value: detail.cidade },
   ].filter((fact) => fact.value);
   return (
@@ -355,26 +470,119 @@ function QuickFacts({ detail }: { detail: AdDetail }) {
   );
 }
 
-function FipeBlock({ detail }: { detail: AdDetail }) {
+/**
+ * Leilão e sinistro são declaração do anunciante. O verde de "limpo" só vale com laudo
+ * cautelar enviado, como no site; sem laudo, o "Não" aparece neutro.
+ */
+function History({ detail, hasReport }: { detail: AdDetail; hasReport: boolean }) {
   const { colors } = useTheme();
-  const signedIn = useSession().status === 'authenticated';
-  if (detail.fipeBloqueada) {
+  const items = [
+    { icon: Gavel, label: 'Passagem por leilão', value: detail.historicoLeilao },
+    { icon: TriangleAlert, label: 'Registro de sinistro', value: detail.historicoSinistro },
+  ];
+  return (
+    <View style={styles.block}>
+      <AppText variant="title">Histórico</AppText>
+      <View style={styles.history}>
+        {items.map(({ icon: Icon, label, value }) => {
+          const clear = value === false && hasReport;
+          const text = value == null ? 'Não informado' : value ? 'Sim' : 'Não';
+          return (
+            <View
+              key={label}
+              accessible
+              accessibilityLabel={`${label}: ${text}${clear ? ', confirmado por laudo' : ''}`}
+              style={[
+                styles.historyItem,
+                {
+                  backgroundColor: clear ? colors.dealTint : colors.subtle,
+                  borderColor: clear ? colors.dealBorder : colors.border,
+                },
+              ]}>
+              <Icon size={18} color={clear ? colors.deal : value ? colors.red : colors.muted} />
+              <View style={styles.flex}>
+                <AppText variant="caption" color="muted">
+                  {label}
+                </AppText>
+                <AppText variant="bodyStrong" color={clear ? 'deal' : 'text'}>
+                  {text}
+                </AppText>
+              </View>
+              {clear ? <ShieldCheck size={18} color={colors.deal} /> : null}
+            </View>
+          );
+        })}
+      </View>
+      {hasReport ? null : (
+        <AppText variant="caption" color="muted">
+          Informado pelo anunciante. Sem laudo cautelar anexado.
+        </AppText>
+      )}
+    </View>
+  );
+}
+
+function FipeBlock({ detail, signedIn }: { detail: AdDetail; signedIn: boolean }) {
+  const { colors } = useTheme();
+  // Depois de revelar, o valor fica nesta visita (como no site).
+  const [revealed, setRevealed] = useState<AdFipe | null>(null);
+  const reveal = useMutation({
+    mutationFn: () => revealAdFipe(detail.id),
+    onSuccess: (fipe) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setRevealed(fipe);
+    },
+  });
+  const quota = useMutation({ mutationFn: () => announceApi.fipeQuota() });
+
+  async function askAndReveal() {
+    reveal.reset();
+    try {
+      const cota = await quota.mutateAsync();
+      if (cota.ilimitado) return reveal.mutate();
+      if ((cota.restantes ?? 0) <= 0)
+        return showDialog({
+          title: 'Consultas FIPE esgotadas',
+          message: 'As consultas FIPE do seu plano neste mês acabaram. Elas voltam no próximo mês.',
+        });
+      showDialog({
+        title: 'Revelar FIPE?',
+        message: `Usa 1 das ${cota.restantes} consultas FIPE que restam no seu plano neste mês.`,
+        actions: [
+          { label: 'Cancelar', kind: 'cancel' },
+          { label: 'Revelar', onPress: () => reveal.mutate() },
+        ],
+      });
+    } catch {
+      reveal.mutate();
+    }
+  }
+
+  const fipe = revealed ?? detail.fipe;
+  if (detail.fipeBloqueada && !revealed) {
     return (
-      <View style={[styles.fipe, { backgroundColor: colors.subtle, borderColor: colors.border }]}>
-        <Lock size={20} color={colors.muted} />
-        <View style={styles.flex}>
-          <AppText variant="bodyStrong">Comparação com a FIPE</AppText>
-          <AppText variant="caption" color="muted">
-            {signedIn
-              ? 'A comparação pelo app (que usa a cota FIPE do seu plano) chega na próxima etapa.'
-              : 'Entre na sua conta para comparar o preço com a tabela FIPE.'}
-          </AppText>
+      <View style={[styles.fipeLocked, { backgroundColor: colors.subtle, borderColor: colors.border }]}>
+        <View style={styles.fipeRow}>
+          <Lock size={20} color={colors.muted} />
+          <View style={styles.flex}>
+            <AppText variant="bodyStrong">Comparação com a FIPE</AppText>
+            <AppText variant="caption" color="muted">
+              Veja quanto este preço está abaixo ou acima da tabela FIPE.
+            </AppText>
+          </View>
         </View>
+        <Button
+          label={signedIn ? 'Revelar comparação FIPE' : 'Entrar para ver a FIPE'}
+          variant="secondary"
+          loading={reveal.isPending || quota.isPending}
+          onPress={signedIn ? askAndReveal : () => router.push('/entrar')}
+        />
+        {reveal.isError ? <Notice tone="error" message={reveal.error.message} /> : null}
       </View>
     );
   }
-  if (!detail.fipe) return null;
-  const diff = detail.fipe.diferencaCentavos;
+  if (!fipe) return null;
+  const diff = fipe.diferencaCentavos;
   const below = (diff ?? 0) < 0;
   const Icon = below ? TrendingDown : TrendingUp;
   return (
@@ -389,7 +597,7 @@ function FipeBlock({ detail }: { detail: AdDetail }) {
           {diff == null ? 'Tabela FIPE' : below ? `${formatCents(-diff)} abaixo da FIPE` : `${formatCents(diff)} acima da FIPE`}
         </AppText>
         <AppText variant="caption" color="muted">
-          FIPE {detail.fipe.mesReferencia}: {formatCents(detail.fipe.valorCentavos)}
+          FIPE {fipe.mesReferencia}: {formatCents(fipe.valorCentavos)} · código {fipe.codigo}
         </AppText>
       </View>
     </View>
@@ -398,15 +606,21 @@ function FipeBlock({ detail }: { detail: AdDetail }) {
 
 function specRows(detail: AdDetail): [string, string][] {
   const d = detail.detalhes ?? {};
-  const rows: [string, string][] = [];
-  if (detail.cor) rows.push(['Cor', detail.cor]);
-  if (detail.tipoFreio) rows.push(['Freios', detail.tipoFreio]);
-  for (const [key, label] of specLabels) {
-    const value = d[key];
-    if (value == null || value === '') continue;
-    rows.push([label, typeof value === 'boolean' ? (value ? 'Sim' : 'Não') : humanize(String(value)) ?? String(value)]);
-  }
-  return rows;
+  const zeroKm = detail.condicao === 'ZERO_KM';
+  const rows: [string, string | null][] = [
+    ['Cor', shown(detail.cor)],
+    ['Freios', shown(detail.tipoFreio)],
+    ...technicalFields
+      .filter(([key]) => !(zeroKm && zeroKmHiddenFields.includes(key)))
+      .map(([key, label, suffix]): [string, string | null] => [label, shown(d[key], suffix)]),
+  ];
+  // A placa só aparece inteira quando o anunciante liberou; senão, o final.
+  if (!zeroKm && typeof d.placa === 'string' && d.placa)
+    rows.push(['Placa', d.placaCompletaVisivel ? d.placa : `Final ${d.placa}`]);
+  for (const [key, label] of additionalFields)
+    if (!(zeroKm && zeroKmHiddenFields.includes(key))) rows.push([label, shown(d[key])]);
+  rows.push(['Aceita troca', shown(detail.aceitaTroca)]);
+  return rows.filter((row): row is [string, string] => row[1] != null);
 }
 
 /** O favorito guarda o formato do card; o detalhe tem os mesmos dados com nomes próprios. */
@@ -484,10 +698,15 @@ const styles = StyleSheet.create({
   facts: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   fact: { minWidth: 100, flexGrow: 1, flexBasis: '30%', padding: space.md, borderRadius: radius.md, gap: 2 },
   fipe: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.lg, borderWidth: 1 },
+  fipeLocked: { gap: space.md, padding: space.lg, borderRadius: radius.lg, borderWidth: 1 },
+  fipeRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  lotBanner: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth },
+  report: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth },
   specs: { borderWidth: StyleSheet.hairlineWidth, borderRadius: radius.lg, marginTop: space.sm },
   specRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.lg, paddingHorizontal: space.lg, paddingVertical: space.md },
   specValue: { flexShrink: 1, textAlign: 'right' },
-  trust: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.lg, borderWidth: 1 },
+  history: { flexDirection: 'row', gap: space.sm },
+  historyItem: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.md, borderRadius: radius.md, borderWidth: 1, minHeight: 56 },
   seller: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.lg },
   avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarImage: { width: 48, height: 48 },
@@ -515,6 +734,9 @@ const styles = StyleSheet.create({
   placeholder: { width: 40, flexShrink: 0 },
   noPhoto: { alignItems: 'center', justifyContent: 'center', gap: space.sm },
   counter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     position: 'absolute',
     right: space.lg,
     bottom: space.xxxl,

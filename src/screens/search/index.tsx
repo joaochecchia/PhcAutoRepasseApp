@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
-import { ArrowUpDown, Search as SearchIcon, SearchX, SlidersHorizontal, WifiOff, X } from 'lucide-react-native';
+import { ArrowUpDown, ChevronDown, MapPin, Search as SearchIcon, SearchX, SlidersHorizontal, WifiOff, X } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View, type TextInputInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,10 +8,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { searchAds, type SearchFilters } from '@/api/ads';
 import { AppText } from '@/components/app-text';
 import { Chip } from '@/components/chip';
+import { LocationSheet } from '@/components/location-sheet';
 import { StateView } from '@/components/state-view';
 import { VehicleCard, VehicleCardSkeleton } from '@/components/vehicle-card';
 import { conditions, priceRanges, sortOptions, vehicleTypes } from '@/data/catalog';
+import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
+import { locationLabel } from '@/utils/location';
 import { formatCount } from '@/utils/format';
 import { fonts, radius, space } from '@/theme';
 import { FilterSheet } from './filter-sheet';
@@ -47,13 +50,15 @@ export function Search() {
   const [filters, setFilters] = useState<SearchFilters>(() => filtersFrom(params));
   const [text, setText] = useState(params.termo ?? '');
   const [sheet, setSheet] = useState(false);
+  const [locationSheet, setLocationSheet] = useState(false);
+  const signedIn = useSession().status === 'authenticated';
   const inputRef = useRef<TextInputInstance>(null);
 
   // Atalhos da tela inicial chegam como parâmetros; "t" muda a cada atalho e reaplica os filtros.
   const [appliedStamp, setAppliedStamp] = useState(params.t);
   if (params.t && params.t !== appliedStamp) {
     setAppliedStamp(params.t);
-    setFilters(filtersFrom(params));
+    setFilters((current) => ({ ...filtersFrom(params), local: current.local }));
     setText(params.termo ?? '');
   }
 
@@ -80,11 +85,13 @@ export function Search() {
 
   const items = query.data?.pages.flatMap((page) => page.carros) ?? [];
   const total = query.data?.pages[0]?.total;
+  const radiusKm = query.data?.pages[0]?.raioKmAplicado;
+  const nearby = filters.local && filters.local.modo !== 'BRASIL';
   const active = activeChips(filters);
 
   function clearAll() {
     setText('');
-    setFilters({});
+    setFilters((current) => ({ local: current.local }));
   }
 
   return (
@@ -127,6 +134,17 @@ export function Search() {
             ) : null}
           </Pressable>
         </View>
+        <Pressable
+          onPress={() => setLocationSheet(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`Região: ${locationLabel(filters.local)}. Toque para mudar`}
+          style={({ pressed }) => [styles.location, pressed && { opacity: 0.6 }]}>
+          <MapPin size={16} color={nearby ? colors.red : colors.muted} />
+          <AppText variant="label" color={nearby ? 'red' : 'text'} numberOfLines={1} style={styles.locationText}>
+            {locationLabel(filters.local)}
+          </AppText>
+          <ChevronDown size={16} color={colors.muted} />
+        </Pressable>
         {active.length ? (
           <FlatList
             horizontal
@@ -168,8 +186,9 @@ export function Search() {
         ListHeaderComponent={
           total != null ? (
             <View style={styles.resultsHeader}>
-              <AppText variant="label" color="muted">
+              <AppText variant="label" color="muted" style={styles.flex}>
                 {total === 1 ? '1 veículo encontrado' : `${formatCount(total)} veículos encontrados`}
+                {nearby && radiusKm ? ` até ${radiusKm} km` : ''}
               </AppText>
               <Pressable onPress={() => setSheet(true)} hitSlop={10} style={styles.sort} accessibilityRole="button">
                 <ArrowUpDown size={14} color={colors.red} />
@@ -205,12 +224,22 @@ export function Search() {
         ItemSeparatorComponent={() => <View style={{ height: space.lg }} />}
       />
 
+      <LocationSheet
+        visible={locationSheet}
+        current={filters.local}
+        signedIn={signedIn}
+        onClose={() => setLocationSheet(false)}
+        onApply={(local) => {
+          setFilters((current) => ({ ...current, local }));
+          setLocationSheet(false);
+        }}
+      />
       <FilterSheet
         visible={sheet}
         initial={filters}
         onClose={() => setSheet(false)}
         onApply={(next) => {
-          setFilters({ ...next, termo: filters.termo });
+          setFilters({ ...next, termo: filters.termo, local: filters.local });
           setSheet(false);
         }}
       />
@@ -243,6 +272,9 @@ function activeChips(filters: SearchFilters): ActiveChip[] {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  flex: { flex: 1 },
+  location: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 36, paddingHorizontal: space.lg },
+  locationText: { flexShrink: 1 },
   top: { gap: space.md, paddingBottom: space.md },
   title: { paddingHorizontal: space.lg },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg },

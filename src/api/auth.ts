@@ -73,6 +73,23 @@ export const authApi = {
     return finish({ ...response, challengeId: null });
   },
 
+  /** Dados que o Google confirmou para o cadastro de uma conta nova. */
+  socialRegistrationInfo: (ticket: string, signal?: AbortSignal) =>
+    request<{ provedor: string; nome: string; email: string; manterConectado: boolean }>(
+      `/autenticacao/social/cadastro/${encodeURIComponent(ticket)}`,
+      { signal },
+    ),
+
+  /** Cadastro de conta nova vinda do Google: sem senha, com o verificador PKCE do login. Já volta logado. */
+  async socialRegister(ticket: string, verifier: string, cadastro: Record<string, unknown>) {
+    const response = await request<LoginResponse>('/autenticacao/social/cadastro', {
+      method: 'POST',
+      body: { token: ticket, cadastro, manterConectado: true, verificador: verifier },
+      timeoutMs: 30_000,
+    });
+    return finish({ ...response, challengeId: null });
+  },
+
   /** Sai do app: revoga o refresh no servidor e apaga a sessão do aparelho (mesmo sem rede). */
   async logout() {
     const refreshToken = await sessionStore.refreshToken();

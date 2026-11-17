@@ -5,15 +5,16 @@ import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { startChat, stopChat } from '@/api/chat-socket';
 import { DialogHost } from '@/components/dialog';
 import { SplashOverlay } from '@/components/splash-overlay';
 import { FavoritesProvider } from '@/hooks/use-favorites';
 import { IntroProvider } from '@/hooks/use-intro';
-import { SessionProvider } from '@/hooks/use-session';
+import { SessionProvider, useSession } from '@/hooks/use-session';
 import { AppThemeProvider, useTheme } from '@/hooks/use-theme';
 import { brandCharcoal } from '@/theme';
 
@@ -46,6 +47,7 @@ export default function RootLayout() {
             <FavoritesProvider>
               <IntroProvider>
                 <Navigation />
+                <ChatConnection />
                 <DialogHost />
                 <SplashOverlay ready />
               </IntroProvider>
@@ -55,6 +57,16 @@ export default function RootLayout() {
       </QueryClientProvider>
     </GestureHandlerRootView>
   );
+}
+
+/** Chat em tempo real enquanto houver sessão; sai da conta, desconecta. */
+function ChatConnection() {
+  const status = useSession().status;
+  useEffect(() => {
+    if (status === 'authenticated') startChat();
+    else if (status === 'anonymous') stopChat();
+  }, [status]);
+  return null;
 }
 
 function Navigation() {
@@ -71,10 +83,24 @@ function Navigation() {
         <Stack screenOptions={{ contentStyle: { backgroundColor: colors.bg }, headerTintColor: colors.red }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="anuncio/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="lote/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="privacidade" options={{ title: 'Privacidade', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="planos" options={{ title: 'Planos e preços', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="tabela-fipe" options={{ title: 'Tabela FIPE', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="patio" options={{ title: 'Pátio PHC Auto', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="lojistas" options={{ title: 'Lojistas', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="loja/[slug]" options={{ title: 'Loja', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="entrar" options={{ presentation: 'modal', title: 'Entrar', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="auth" options={{ headerShown: false, animation: 'none' }} />
+          <Stack.Screen name="cadastro" options={{ presentation: 'modal', title: 'Criar conta', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="redefinir-senha" options={{ presentation: 'modal', title: 'Senha', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="minha-conta/index" options={{ title: 'Minha conta', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="minha-conta/excluir" options={{ presentation: 'modal', title: 'Excluir conta', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="avisos" options={{ title: 'Avisos', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="fila-espera" options={{ title: 'Fila de espera', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="meus-anuncios/index" options={{ title: 'Meus anúncios', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="meus-anuncios/[id]" options={{ title: 'Editar anúncio', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="meus-anuncios/lote/[id]" options={{ title: 'Editar lote', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="meus-anuncios/estatisticas" options={{ title: 'Estatísticas', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="mensagens/index" options={{ title: 'Mensagens', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="mensagens/[id]" options={{ title: 'Conversa', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />

@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { BadgeCheck, CarFront, Layers, TrendingDown } from 'lucide-react-native';
+import { BadgeCheck, CarFront, Layers, TicketPercent, TrendingDown } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 
 import { mediaUrl } from '@/api/client';
@@ -13,10 +13,31 @@ import { useTheme } from '@/hooks/use-theme';
 import { formatKm, formatLocation, formatPrice, formatYears, humanize, isBelowFipe } from '@/utils/format';
 import { radius, space } from '@/theme';
 
-type Props = { ad: SearchAd; layout?: 'row' | 'tile'; width?: number };
+type Props = {
+  ad: SearchAd;
+  layout?: 'row' | 'tile';
+  width?: number;
+  /** Card de lote leva ao lote; dentro da página do lote, cada carro abre o próprio anúncio. */
+  openLot?: boolean;
+};
 
-function openAd(ad: SearchAd) {
-  router.push({ pathname: '/anuncio/[id]', params: { id: ad.anuncioId } });
+function openAd(ad: SearchAd, openLot: boolean) {
+  if (openLot && ad.loteId) router.push({ pathname: '/lote/[id]', params: { id: ad.loteId } });
+  else router.push({ pathname: '/anuncio/[id]', params: { id: ad.anuncioId } });
+}
+
+/** Etiqueta da promoção no canto da foto: "Promoção" e a condição principal. */
+function PromoTag({ ad }: { ad: SearchAd }) {
+  const { colors } = useTheme();
+  if (!ad.promocao) return null;
+  return (
+    <View style={[styles.promo, { backgroundColor: colors.red }]} accessibilityLabel={`Promoção: ${ad.promocao.titulo}`}>
+      <TicketPercent size={12} color={colors.onRed} />
+      <AppText variant="label" color="onRed" style={styles.promoText} numberOfLines={1}>
+        {ad.promocao.destaque}
+      </AppText>
+    </View>
+  );
 }
 
 function Photo({ ad, style }: { ad: SearchAd; style: object }) {
@@ -57,7 +78,7 @@ function SoldBadge() {
 }
 
 /** Card do veículo: "row" (foto à esquerda, como na vitrine) e "tile" (foto em cima, para listas). */
-export function VehicleCard({ ad, layout = 'tile', width }: Props) {
+export function VehicleCard({ ad, layout = 'tile', width, openLot = true }: Props) {
   const { colors } = useTheme();
   const years = formatYears(ad.anoFabricacao, ad.anoModelo);
   const km = formatKm(ad.quilometragem);
@@ -69,13 +90,13 @@ export function VehicleCard({ ad, layout = 'tile', width }: Props) {
   if (layout === 'row') {
     return (
       <PressableScale
-        onPress={() => openAd(ad)}
+        onPress={() => openAd(ad, openLot)}
         accessibilityRole="button"
         accessibilityLabel={label}
         style={[styles.row, { width, backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View>
           <Photo ad={ad} style={styles.rowPhoto} />
-          {sold ? <SoldBadge /> : null}
+          {sold ? <SoldBadge /> : <PromoTag ad={ad} />}
         </View>
         <View style={styles.rowBody}>
           <AppText variant="overline" color="muted" numberOfLines={1}>
@@ -106,7 +127,7 @@ export function VehicleCard({ ad, layout = 'tile', width }: Props) {
 
   return (
     <PressableScale
-      onPress={() => openAd(ad)}
+      onPress={() => openAd(ad, openLot)}
       accessibilityRole="button"
       accessibilityLabel={label}
       style={[styles.tile, { width, backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -119,7 +140,7 @@ export function VehicleCard({ ad, layout = 'tile', width }: Props) {
           </View>
           {!sold ? <FavoriteButton ad={ad} onImage /> : null}
         </View>
-        {sold ? <SoldBadge /> : null}
+        {sold ? <SoldBadge /> : <PromoTag ad={ad} />}
       </View>
       <View style={styles.tileBody}>
         <View style={styles.titleRow}>
@@ -248,4 +269,17 @@ const styles = StyleSheet.create({
   fipeText: { fontSize: 11 },
   badge: { position: 'absolute', bottom: space.sm, left: space.sm, paddingHorizontal: space.sm, paddingVertical: 4, borderRadius: 6 },
   badgeText: { color: '#fff' },
+  promo: {
+    position: 'absolute',
+    bottom: space.sm,
+    left: space.sm,
+    maxWidth: '90%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: space.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  promoText: { fontSize: 11, flexShrink: 1 },
 });

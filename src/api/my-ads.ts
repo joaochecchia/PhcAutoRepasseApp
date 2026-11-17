@@ -226,3 +226,41 @@ export const myAdsApi = {
       signal,
     }),
 };
+
+const lot = (id: string) => `/lotes/${encodeURIComponent(id)}`;
+
+/** Edição do lote pelo dono (LotEditPage do site). Fotos, vídeo e carros são salvos na hora. */
+export const lotsApi = {
+  /** Dados comuns (merge patch no formato do anúncio), aplicados a todos os carros à venda. */
+  update: (id: string, changes: Record<string, unknown>) =>
+    request<void>(lot(id), { method: 'PATCH', body: changes, auth: true, timeoutMs: 30_000 }),
+  addPhoto: (id: string, file: UploadFile, posicao: number) => {
+    const form = new FormData();
+    form.append('arquivo', file as unknown as Blob);
+    form.append('posicao', String(posicao));
+    return upload<OwnPhoto>(`${lot(id)}/fotos`, form, { timeoutMs: 60_000 });
+  },
+  removePhoto: (id: string, fotoId: string) =>
+    request<void>(`${lot(id)}/fotos/${encodeURIComponent(fotoId)}`, { method: 'DELETE', auth: true }),
+  removeVideo: (id: string) => request<void>(`${lot(id)}/midias/video`, { method: 'DELETE', auth: true }),
+  /** Tira o carro do lote; ele vira anúncio avulso. */
+  removeCar: (id: string, anuncioId: string) =>
+    request<void>(`${lot(id)}/carros/${encodeURIComponent(anuncioId)}`, { method: 'DELETE', auth: true }),
+  addCars: (
+    id: string,
+    payload: {
+      anuncio: unknown | null;
+      unidades: { cor: string; placa: string | null; quilometragem: number | null }[];
+      anunciosExistentes: string[];
+      publicar: boolean;
+    },
+  ) =>
+    request<{ loteId: string; anunciosCriados: string[]; anunciosIncluidos: string[] }>(`${lot(id)}/carros`, {
+      method: 'POST',
+      body: payload,
+      auth: true,
+      timeoutMs: 60_000,
+    }),
+  /** Exclui o lote; os carros viram anúncios avulsos. */
+  remove: (id: string) => request<void>(lot(id), { method: 'DELETE', auth: true }),
+};

@@ -7,7 +7,7 @@ import { createPkcePair } from '@/utils/pkce';
 
 export type GoogleOutcome =
   | { kind: 'authenticated' }
-  | { kind: 'new-account'; ticket: string }
+  | { kind: 'new-account'; ticket: string; verifier: string }
   | { kind: 'cancelled' }
   | { kind: 'error'; message: string };
 
@@ -45,7 +45,8 @@ export async function signInWithGoogle(): Promise<GoogleOutcome> {
   const erro = value('erro');
   if (erro) return { kind: 'error', message: errors[erro] ?? 'Não foi possível entrar com Google.' };
   const ticket = value('social_token');
-  if (ticket) return { kind: 'new-account', ticket };
+  // Conta nova: o cadastro no app prova o mesmo PKCE (o ticket sozinho não basta).
+  if (ticket) return { kind: 'new-account', ticket, verifier };
   const codigo = value('codigo');
   if (!codigo) return { kind: 'error', message: 'O Google não devolveu a confirmação. Tente novamente.' };
   await authApi.exchangeGoogleCode(codigo, verifier);

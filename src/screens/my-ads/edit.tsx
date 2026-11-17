@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
-import { router, useLocalSearchParams, usePreventRemove } from 'expo-router';
+import { router, useLocalSearchParams, usePreventRemove, type Href } from 'expo-router';
 import { Layers, Trash2, WifiOff } from 'lucide-react-native';
 import { useMemo, useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
@@ -20,7 +20,8 @@ import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
 import { formatCents } from '@/utils/format';
-import { AdField, ChoiceRow, suggestionsFor } from '@/screens/announce/ad-fields';
+import { ChoiceRow } from '@/components/choice-row';
+import { AdField, suggestionsFor } from '@/screens/announce/ad-fields';
 import { addressFields, fieldsByType, fipeTypes, motorFields, vehicleTypes, type Field } from '@/screens/announce/fields';
 import { FipeSelector } from '@/screens/announce/fipe-selector';
 import type { Draft } from '@/screens/announce/payload';
@@ -61,9 +62,9 @@ export function EditAdScreen() {
         <StateView
           icon={Layers}
           title="Carro de lote"
-          message="Os dados comuns e a lista de carros são editados no lote, que ainda não está no app."
-          actionLabel="Voltar"
-          onAction={() => router.back()}
+          message="Os dados comuns e a lista de carros são editados no lote."
+          actionLabel="Editar lote"
+          onAction={() => router.replace(`/meus-anuncios/lote/${ad.data!.loteId}` as Href)}
         />
       </View>
     );

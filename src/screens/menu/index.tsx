@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import * as WebBrowser from 'expo-web-browser';
 import { router, type Href } from 'expo-router';
 import {
   Activity,
@@ -17,6 +16,7 @@ import {
   Server,
   ShieldCheck,
   ShoppingBag,
+  UserRound,
   Store,
   Table2,
   Tags,
@@ -34,29 +34,40 @@ import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { showDialog } from '@/components/dialog';
 import { Skeleton } from '@/components/skeleton';
+import { useAccount } from '@/hooks/use-account';
+import { useNoticesSummary } from '@/hooks/use-notices';
 import { isStaff, useSession } from '@/hooks/use-session';
 import { useTheme, type ThemePreference } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
 
-type Item = { icon: LucideIcon; label: string; note?: string; onPress?: () => void };
+type Item = { icon: LucideIcon; label: string; note?: string; highlight?: boolean; onPress?: () => void };
 
 function soon(label: string) {
   return () => showDialog({ title: label, message: 'Esta área do site ainda está sendo trazida para o app.' });
 }
 
-const account: Item[] = [
-  { icon: Tags, label: 'Meus anúncios', onPress: () => router.push('/meus-anuncios' as Href) },
-  { icon: MessagesSquare, label: 'Mensagens', onPress: () => router.push('/mensagens' as Href) },
-  { icon: Bell, label: 'Avisos', onPress: soon('Avisos') },
-  { icon: Clock, label: 'Fila de espera', onPress: soon('Fila de espera') },
-  { icon: ShoppingBag, label: 'Minhas compras', onPress: soon('Minhas compras') },
-];
+function accountItems(unreadNotices: number): Item[] {
+  return [
+    { icon: UserRound, label: 'Minha conta', onPress: () => router.push('/minha-conta') },
+    { icon: Tags, label: 'Meus anúncios', onPress: () => router.push('/meus-anuncios' as Href) },
+    { icon: MessagesSquare, label: 'Mensagens', onPress: () => router.push('/mensagens' as Href) },
+    {
+      icon: Bell,
+      label: 'Avisos',
+      note: unreadNotices ? (unreadNotices === 1 ? '1 novo' : `${unreadNotices} novos`) : undefined,
+      highlight: unreadNotices > 0,
+      onPress: () => router.push('/avisos'),
+    },
+    { icon: Clock, label: 'Fila de espera', onPress: () => router.push('/fila-espera') },
+    { icon: ShoppingBag, label: 'Minhas compras', onPress: soon('Minhas compras') },
+  ];
+}
 
 const explore: Item[] = [
-  { icon: Store, label: 'Lojistas', onPress: soon('Lojistas') },
-  { icon: Warehouse, label: 'Pátio PHC', onPress: soon('Pátio PHC') },
-  { icon: Table2, label: 'Tabela FIPE', onPress: soon('Tabela FIPE') },
-  { icon: CreditCard, label: 'Planos e preços', onPress: soon('Planos e preços') },
+  { icon: Store, label: 'Lojistas', onPress: () => router.push('/lojistas' as Href) },
+  { icon: Warehouse, label: 'Pátio PHC', onPress: () => router.push('/patio' as Href) },
+  { icon: Table2, label: 'Tabela FIPE', onPress: () => router.push('/tabela-fipe' as Href) },
+  { icon: CreditCard, label: 'Planos e preços', onPress: () => router.push('/planos' as Href) },
 ];
 
 const admin: Item[] = [
@@ -91,6 +102,7 @@ export function MenuScreen() {
   const online = status.data?.status === 'UP';
   const session = useSession();
   const user = session.status === 'authenticated' ? session.user : null;
+  const notices = useNoticesSummary();
 
   return (
     <ScrollView
@@ -125,7 +137,7 @@ export function MenuScreen() {
         </>
       )}
 
-      {user ? <Group title="Sua conta" items={account} /> : null}
+      {user ? <Group title="Sua conta" items={accountItems(notices.data?.naoLidos ?? 0)} /> : null}
       <Group title="Explorar" items={explore} />
       <ThemePicker />
       {user && isStaff(user.papel) ? <Group title="Administração" items={admin} /> : null}
@@ -138,7 +150,7 @@ export function MenuScreen() {
           <Row
             icon={ShieldCheck}
             label="Privacidade e termos"
-            onPress={() => WebBrowser.openBrowserAsync('https://phcauto.com/privacidade')}
+            onPress={() => router.push('/privacidade' as Href)}
           />
           <Divider />
           <Pressable onPress={() => status.refetch()} accessibilityRole="button" accessibilityLabel={`Servidor ${online ? 'no ar' : 'fora do ar'}, ${apiOrigin}`} style={styles.row}>
@@ -179,14 +191,16 @@ export function MenuScreen() {
 /** Quem está logado: nome e e-mail vêm do perfil (GET /usuarios/{id}). */
 function AccountCard({ user }: { user: SessionUser }) {
   const { colors } = useTheme();
-  const profile = useQuery({
-    queryKey: ['profile', user.usuarioId],
-    queryFn: ({ signal }) => authApi.profile(user.usuarioId, signal),
-  });
+  const profile = useAccount();
   const name = profile.data?.razaoSocial || profile.data?.nome;
   const initial = name?.trim().charAt(0).toLocaleUpperCase('pt-BR') ?? '';
   return (
-    <View style={[styles.account, { backgroundColor: colors.subtle }]} accessible accessibilityLabel={name ? `Conectado como ${name}` : 'Conectado'}>
+    <Pressable
+      onPress={() => router.push('/minha-conta')}
+      accessibilityRole="button"
+      accessibilityLabel={name ? `Conectado como ${name}` : 'Conectado'}
+      accessibilityHint="Abre seus dados, foto e senha"
+      style={({ pressed }) => [styles.account, { backgroundColor: colors.subtle }, pressed && { opacity: 0.8 }]}>
       <View style={[styles.avatar, { backgroundColor: colors.red }]}>
         <AppText variant="title" color="onRed">
           {initial}
@@ -221,7 +235,7 @@ function AccountCard({ user }: { user: SessionUser }) {
       <View style={[styles.badge, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <AppText variant="label">{papelLabels[user.papel] ?? user.papel}</AppText>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -282,7 +296,7 @@ function Group({ title, items }: { title: string; items: Item[] }) {
 }
 
 /** Linha larga de lista: destaca o fundo ao tocar, sem escala (skill expo-animation). */
-function Row({ icon: Icon, label, note, onPress }: Item) {
+function Row({ icon: Icon, label, note, highlight, onPress }: Item) {
   const { colors } = useTheme();
   return (
     <Pressable
@@ -296,9 +310,17 @@ function Row({ icon: Icon, label, note, onPress }: Item) {
         {label}
       </AppText>
       {note ? (
-        <AppText variant="caption" color="muted">
-          {note}
-        </AppText>
+        highlight ? (
+          <View style={[styles.pill, { backgroundColor: colors.red }]}>
+            <AppText variant="label" color="onRed">
+              {note}
+            </AppText>
+          </View>
+        ) : (
+          <AppText variant="caption" color="muted">
+            {note}
+          </AppText>
+        )
       ) : null}
       {onPress ? <ChevronRight size={18} color={colors.muted} /> : null}
     </Pressable>
@@ -323,6 +345,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, minHeight: 52, paddingVertical: space.sm },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: space.lg + 20 + space.md },
   status: { width: 8, height: 8, borderRadius: 4 },
+  pill: { paddingHorizontal: space.sm, paddingVertical: 2, borderRadius: radius.pill },
   segmented: { flexDirection: 'row', padding: 3, borderRadius: radius.md },
   segment: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm + 1 },
 });

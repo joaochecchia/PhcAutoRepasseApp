@@ -38,7 +38,15 @@
         }
       ],
       "expo-status-bar",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-video",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "O PHC Auto usa sua localização aproximada para mostrar veículos e lojas perto de você."
+        }
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

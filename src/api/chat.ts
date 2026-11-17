@@ -16,4 +16,12 @@ export const chatApi = {
   messages: (id: string, antes?: string, signal?: AbortSignal) => request<ChatMessagesPage>(`/chat/conversas/${encodeURIComponent(id)}/mensagens`, { auth: true, params: { antes, tamanho: 50 }, signal }),
   send: (id: string, texto: string) => request<ChatMessage>(`/chat/conversas/${encodeURIComponent(id)}/mensagens`, { method: 'POST', body: { texto }, auth: true }),
   markRead: (id: string) => request<void>(`/chat/conversas/${encodeURIComponent(id)}/leitura`, { method: 'POST', auth: true }),
+  unread: async (signal?: AbortSignal) => (await request<{ total: number }>('/chat/nao-lidas', { auth: true, signal })).total,
 };
+
+export type ChatEvent =
+  | { tipo: 'MENSAGEM'; conversaId: string; mensagem: ChatMessage; minha: boolean }
+  | { tipo: 'LEITURA'; conversaId: string; lidaAte: string; porMim: boolean }
+  | { tipo: 'ENCERRADA'; conversaId: string; motivoEncerramento: string }
+  | { tipo: 'ENTREGA'; conversaId: string; entregueAte: string }
+  | { tipo: 'DIGITANDO'; conversaId: string };

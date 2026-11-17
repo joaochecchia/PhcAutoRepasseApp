@@ -18,7 +18,6 @@ import {
 import { Check } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { authApi } from "@/api/auth";
 import { findAddressByCep } from "@/api/viacep";
 import {
   announceApi,
@@ -31,12 +30,16 @@ import { AppText } from "@/components/app-text";
 import { Button } from "@/components/button";
 import { Notice } from "@/components/notice";
 import { TextField } from "@/components/text-field";
+import { useAccount } from "@/hooks/use-account";
 import { useSession } from "@/hooks/use-session";
 import { cleanMasked, displayMasked, maskInput } from "@/utils/masks";
 import { useTheme } from "@/hooks/use-theme";
 import { radius, space, touch } from "@/theme";
 import { adPayload, type Draft } from "./payload";
-import { AdField, ChoiceRow, preparePhoto, suggestionsFor } from "./ad-fields";
+import { ChoiceRow } from "@/components/choice-row";
+import { preparePhoto } from "@/utils/prepare-photo";
+import { AdField, suggestionsFor } from "./ad-fields";
+import { AdvertiserReview } from "./advertiser-review";
 import { FipeSelector } from "./fipe-selector";
 import {
   addressFields,
@@ -111,22 +114,14 @@ export function Announce() {
   const [warning, setWarning] = useState("");
   const [reference, setReference] = useState<FipeReference | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
+  // Primeiro passo, como no site: conferir os dados do anunciante.
+  const [reviewed, setReviewed] = useState(false);
   const scrollRef = useRef<ScrollViewInstance>(null);
   const tipo = values.tipoVeiculo;
   const fipeType = fipeTypes[tipo];
   const signedIn = session.status === "authenticated";
-  const profile = useQuery({
-    queryKey: [
-      "ad-profile",
-      session.status === "authenticated" ? session.user.usuarioId : null,
-    ],
-    queryFn: ({ signal }) =>
-      authApi.profile(
-        session.status === "authenticated" ? session.user.usuarioId : "",
-        signal,
-      ),
-    enabled: signedIn,
-  });
+  const profile = useAccount();
+
   const asLot =
     lotMode && tipo === "CARRO" && profile.data?.tipoPessoa === "PJ";
   const [cepBusy, setCepBusy] = useState(false);
@@ -716,6 +711,16 @@ export function Announce() {
           onPress={() => router.push("/entrar")}
         />
       </View>
+    );
+  if (!reviewed && !created)
+    return (
+      <AdvertiserReview
+        profile={profile.data}
+        loading={profile.isPending}
+        error={profile.isError ? profile.error.message : null}
+        onRetry={() => profile.refetch()}
+        onContinue={() => setReviewed(true)}
+      />
     );
   if (created)
     return (

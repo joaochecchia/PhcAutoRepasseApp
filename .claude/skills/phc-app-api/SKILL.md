@@ -46,7 +46,8 @@ No app: `src/api/client.ts` (cabeçalhos, renovação única), `src/api/session-
 
 - Google no backend local não funciona pelo celular: o Google só aceita o `redirect_uri` cadastrado no console, e o IP da rede local não pode ser cadastrado. Teste o Google contra o backend publicado.
 - No Expo Go o endereço de volta é `exp://...`, que precisa estar em `OAUTH2_APP_REDIRECTS`. Em produção, prefira testar com build de desenvolvimento (`phcauto://auth`) a liberar `exp://`.
-- Cadastro de conta (inclusive a conta nova vinda do Google) ainda não tem tela no app; o backend já aceita.
+- Cadastro de conta: `/usuarios/registrar` (multipart público quando há foto) e, para conta nova vinda do Google, `/autenticacao/social/cadastro` com `verificador`. O ticket e o verificador passam do login ao cadastro só na memória (`src/api/auth-handoff.ts`), nunca na rota. O cadastro aceita 5 por hora por IP.
+- Redefinição e troca de senha mandam e-mail (código). No backend local com `BREVO_ENABLED=true` o e-mail sai de verdade: não teste esse fluxo com endereços inventados.
 
 ## Erros
 
