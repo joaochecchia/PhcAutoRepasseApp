@@ -14,7 +14,7 @@ App mobile (iOS e Android) do PHC Auto Repasse, marketplace de repasse de veícu
 ## Stack
 
 - Expo (SDK mais recente estável na criação do projeto) com React Native e TypeScript estrito.
-- Deve rodar no **Expo Go**. Só entram bibliotecas que funcionam no Expo Go; se uma funcionalidade exigir build de desenvolvimento, avise o usuário antes de adicioná-la.
+- Deve rodar no **Expo Go**. Só entram bibliotecas que funcionam no Expo Go; se uma funcionalidade exigir build de desenvolvimento, avise o usuário antes de adicioná-la. Exceção aprovada em 17/11/2026: as notificações push (`expo-notifications`) só funcionam num build de desenvolvimento; no Expo Go o resto do app continua funcionando e a tela de Notificações explica a limitação.
 - Expo Router (rotas em `src/app`), Reanimated + Gesture Handler para animação e gestos, `expo-haptics`, `expo-image`, `expo-secure-store`.
 - TanStack Query para dados do servidor. Estado global só para sessão, tema e favoritos de visitante.
 - `@stomp/stompjs` para o chat, como no site.

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "111679028089",
+    "project_id": "phcauto",
+    "storage_bucket": "phcauto.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:111679028089:android:4063e1e2b9a5bd51d10da8",
+        "android_client_info": {
+          "package_name": "com.phcauto.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAfoT8-u2bBdB6OcRLRkCMuKgGz5ln6uKg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

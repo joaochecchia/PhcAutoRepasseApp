@@ -8,6 +8,7 @@ import {
   AtSign,
   LogOut,
   Bell,
+  BellRing,
   ChevronRight,
   Clock,
   CreditCard,
@@ -63,6 +64,7 @@ function accountItems(unreadNotices: number): Item[] {
       onPress: () => router.push('/avisos'),
     },
     { icon: Clock, label: 'Fila de espera', onPress: () => router.push('/fila-espera') },
+    { icon: BellRing, label: 'Notificações', onPress: () => router.push('/notificacoes' as Href) },
     { icon: ShoppingBag, label: 'Minhas compras', onPress: soon('Minhas compras') },
   ];
 }

@@ -1,4 +1,5 @@
 import { request } from './client';
+import { unregisterPush } from './push';
 import type { UserProfile } from './contracts';
 import { sessionStore, type AppTokens } from './session-store';
 
@@ -92,6 +93,8 @@ export const authApi = {
 
   /** Sai do app: revoga o refresh no servidor e apaga a sessão do aparelho (mesmo sem rede). */
   async logout() {
+    // Antes de encerrar: o aparelho para de receber os avisos desta conta (sem rede, tenta de novo depois).
+    await unregisterPush();
     const refreshToken = await sessionStore.refreshToken();
     try {
       if (refreshToken) await request('/usuarios/logout', { method: 'POST', body: { refreshToken }, timeoutMs: 5_000 });

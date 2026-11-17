@@ -11,6 +11,7 @@ import { markChatRead, resetTyping, sendChatMessage, signalTyping, useChatConnec
 import { AppText } from '@/components/app-text';
 import { Notice } from '@/components/notice';
 import { StateView } from '@/components/state-view';
+import { askForPush } from '@/hooks/use-push';
 import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
 import { fonts, radius, space } from '@/theme';
@@ -137,6 +138,8 @@ export function ConversationScreen({ id }: { id: string }) {
     onSuccess: (message) => {
       Haptics.selectionAsync();
       addMessage(message);
+      // Momento com contexto para pedir a permissão: a resposta chega por push.
+      askForPush();
       cache.invalidateQueries({ queryKey: ['conversations'] });
     },
     onError: (_, texto) => setText((current) => current || texto),

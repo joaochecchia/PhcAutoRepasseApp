@@ -59,6 +59,19 @@ STOMP sobre WebSocket com `@stomp/stompjs`. Assinaturas: `/user/queue/chat`, `/u
 
 Riscos a validar: o servidor restringe a origem do WebSocket (`APP_CORS_ALLOWED_ORIGINS`) e autentica o handshake por cookie. Se o app for recusado, o ajuste é no backend e precisa da aprovação do usuário. No React Native o `@stomp/stompjs` costuma precisar de `forceBinaryWSFrames` e `appendMissingNULLonIncoming`.
 
+## Notificações push
+
+Adicionadas em 17/11/2026, com mudança no backend aprovada pelo usuário. Todo aviso da conta (`AvisosUsuarioService.registrar`: mensagem nova, carro da fila de espera) publica `AvisoRegistrado`; depois do commit, `PushAvisosListener` manda pelo serviço de push da Expo (`ExpoPushClient`) aos aparelhos em `notificacoes.aparelhos_push`.
+
+- `PUT /notificacoes/aparelhos` (com sessão) com `{ token, plataforma: ios|android, tipos: [CHAT, FILA_ESPERA] }`: o app chama a cada abertura com sessão e ao mudar as preferências. Token de outra conta passa para esta; no máximo 10 aparelhos por conta; sem registro há 90 dias, o aparelho é esquecido.
+- `POST /notificacoes/aparelhos/remocao` com `{ token }`, **público** (só o aparelho conhece o token): o app chama ao sair; sem rede, tenta de novo na próxima abertura sem sessão.
+- O push leva `data: { aviso, link, tipo }` e `channelId` (`mensagens`, `fila-espera`, `avisos`). Ao tocar, o app marca o aviso como lido e abre `noticeRoute(link)`.
+- Chat (17/11/2026): o push sai **a cada mensagem**, com o texto dela no corpo (até 180 caracteres). O aviso no menu continua um só por conversa não lida e **sem o texto**; as mensagens seguintes vão por `AvisosUsuario.notificar` (só push, sem `aviso` em `data`).
+- Com o app aberto, o sistema não mostra a notificação: `setNotificationHandler` chama `showInAppNotice` (`src/components/in-app-notice.tsx`), um aviso no topo com o visual do app que abre a tela ao tocar e some ao arrastar para cima ou em 6 s. Na conversa que já está aberta, não aparece nada.
+- Backend: `PUSH_ENABLED` (padrão true) e `EXPO_ACCESS_TOKEN` (só com o "push seguro" do projeto Expo). O backend não guarda credencial da Apple nem do Google: elas ficam no EAS.
+- App: `src/api/push.ts` (registro, preferências, canais), `src/hooks/use-push.tsx` (registro com a sessão, toque, número no ícone) e Menu › Notificações. A permissão do sistema só aparece depois de um convite do app: na primeira abertura (diálogo depois da animação da logo, uma vez por aparelho, chave `phc.push.convite`), no cartão do topo de Mensagens (`PushPrompt`, enquanto não houver permissão; recusada no sistema, abre os ajustes), depois de mandar uma mensagem ou entrar na fila, ou pelo botão em Notificações. Sem sessão, `askPushPermission` só pede a permissão; o registro sai ao entrar na conta.
+- **Não funciona no Expo Go do Android** (o push remoto saiu do Expo Go no SDK 53) nem no simulador do iOS. Teste com build de desenvolvimento. O token exige o `projectId` do EAS (`eas init` grava em `app.json › extra.eas.projectId`); sem ele, a tela de Notificações explica o motivo.
+
 ## Upload
 
 Fotos (até 8), vídeo (até 30 s) e laudo vão em `multipart/form-data`, com os timeouts longos do site (60 a 120 s). O site reduz a foto e remove os metadados, inclusive GPS, antes de enviar (`prepareImage.ts`); o app faz o equivalente com `expo-image-manipulator`. As regras de mídia vêm de `GET /anuncios/midias/regras`.

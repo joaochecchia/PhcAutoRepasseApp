@@ -11,9 +11,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { startChat, stopChat } from '@/api/chat-socket';
 import { DialogHost } from '@/components/dialog';
+import { InAppNoticeHost } from '@/components/in-app-notice';
 import { SplashOverlay } from '@/components/splash-overlay';
 import { FavoritesProvider } from '@/hooks/use-favorites';
 import { IntroProvider } from '@/hooks/use-intro';
+import { PushNotifications } from '@/hooks/use-push';
 import { SessionProvider, useSession } from '@/hooks/use-session';
 import { AppThemeProvider, useTheme } from '@/hooks/use-theme';
 import { brandCharcoal } from '@/theme';
@@ -48,6 +50,8 @@ export default function RootLayout() {
               <IntroProvider>
                 <Navigation />
                 <ChatConnection />
+                <PushNotifications />
+                <InAppNoticeHost />
                 <DialogHost />
                 <SplashOverlay ready />
               </IntroProvider>
@@ -97,6 +101,7 @@ function Navigation() {
           <Stack.Screen name="minha-conta/index" options={{ title: 'Minha conta', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="minha-conta/excluir" options={{ presentation: 'modal', title: 'Excluir conta', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="avisos" options={{ title: 'Avisos', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="notificacoes" options={{ title: 'Notificações', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="fila-espera" options={{ title: 'Fila de espera', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="meus-anuncios/index" options={{ title: 'Meus anúncios', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="meus-anuncios/[id]" options={{ title: 'Editar anúncio', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />

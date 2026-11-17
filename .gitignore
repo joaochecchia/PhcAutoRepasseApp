@@ -65,3 +65,6 @@ output/
 # Skills de terceiros (baixe de novo pelas fontes em .claude/skills/README.md)
 .claude/skills/expo-*/
 .claude/skills/react-native-best-practices/
+
+# Chave da conta de serviço do Firebase (secreta; vai só para o EAS). O google-services.json pode entrar no git.
+*firebase-adminsdk*.json

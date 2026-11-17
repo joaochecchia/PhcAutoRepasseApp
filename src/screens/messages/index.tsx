@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { chatApi, type ChatEvent } from '@/api/chat';
 import { useChatEvents } from '@/api/chat-socket';
 import { AppText } from '@/components/app-text';
+import { PushPrompt } from '@/components/push-prompt';
 import { Skeleton } from '@/components/skeleton';
 import { StateView } from '@/components/state-view';
 import { useSession } from '@/hooks/use-session';
@@ -79,6 +80,9 @@ export function MessagesScreen() {
       refreshing={query.isRefetching}
       onRefresh={() => query.refetch()}
       ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.border }]} />}
+      ListHeaderComponent={
+        <PushPrompt message="Saiba na hora quando alguém responder suas conversas." style={styles.prompt} />
+      }
       ListEmptyComponent={
         query.isPending ? (
           <View style={styles.skeletons}>
@@ -160,6 +164,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { paddingVertical: space.sm },
   skeletons: { gap: space.md, padding: space.lg },
+  prompt: { marginHorizontal: space.lg, marginBottom: space.sm },
   separator: { height: StyleSheet.hairlineWidth, marginLeft: 76 },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md, minHeight: 76 },
   avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },

@@ -98,6 +98,8 @@ Estado em 16/11/2026. Tudo o que está `[~]` compila e gera o bundle Android. As
 
 Barra inferior, banner para anunciantes, animação de abertura, hápticos e gestos (ver `phc-app-design`).
 
+- [~] Notificações push dos avisos da conta (mensagem nova e fila de espera), com preferências em Menu › Notificações. Backend e app prontos em 17/11/2026; backend local reconstruído com a V88 e testes de push passando; `eas.json` (perfil `development`) e `expo-dev-client` no app. Projeto no EAS (`@joaochecchia/phc-auto`), `google-services.json` (Firebase `phcauto`) e chave FCM V1 no EAS feitos em 17/11/2026. Falta o build de desenvolvimento do Android e o teste no aparelho; o iOS depende da conta paga da Apple (ver `phc-app-api`).
+
 ## Ordem sugerida
 
 1. Base: projeto Expo, tema, cliente da API, barra inferior, abertura animada.

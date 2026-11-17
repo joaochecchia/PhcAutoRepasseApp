@@ -29,6 +29,7 @@ import { StateView } from '@/components/state-view';
 import { TextField } from '@/components/text-field';
 import { VehicleCard } from '@/components/vehicle-card';
 import { useAccount } from '@/hooks/use-account';
+import { askForPush } from '@/hooks/use-push';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, space, touch } from '@/theme';
 
@@ -229,8 +230,10 @@ export function WaitlistScreen() {
       showDialog({
         title: 'Você entrou na fila',
         message: email
-          ? 'Avisamos em Avisos, no Menu, e por e-mail quando chegar um veículo assim.'
-          : 'Avisamos em Avisos, no Menu, quando chegar um veículo assim.',
+          ? 'Avisamos por notificação, em Avisos, no Menu, e por e-mail quando chegar um veículo assim.'
+          : 'Avisamos por notificação e em Avisos, no Menu, quando chegar um veículo assim.',
+        // O pedido de permissão do sistema vem depois deste aviso, que explica para que serve.
+        actions: [{ label: 'Entendi', onPress: askForPush }],
       });
       clearBrand();
       scroll.current?.scrollTo({ y: 0, animated: true });
