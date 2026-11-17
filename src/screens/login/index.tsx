@@ -29,9 +29,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authApi } from '@/api/auth';
 import { authHandoff } from '@/api/auth-handoff';
 import { ApiError } from '@/api/client';
+import { signInWithApple } from '@/api/apple';
 import { signInWithGoogle } from '@/api/google';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
+import { AppleButton } from '@/components/apple-button';
 import { GoogleButton } from '@/components/google-button';
 import { TextField } from '@/components/text-field';
 import { useSession } from '@/hooks/use-session';
@@ -62,6 +64,7 @@ export function Login() {
   const [confiar, setConfiar] = useState(true);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [resendIn, setResendIn] = useState(0);
@@ -161,6 +164,23 @@ export function Login() {
     }
   }
 
+  async function apple() {
+    setAppleLoading(true);
+    setError('');
+    try {
+      const outcome = await signInWithApple();
+      if (outcome.kind === 'authenticated') return done();
+      if (outcome.kind === 'new-account') {
+        authHandoff.setSocial({ ticket: outcome.ticket, verifier: outcome.verifier });
+        router.push('/cadastro');
+      }
+    } catch (requestError) {
+      fail(errorMessage(requestError, 'Não foi possível entrar com Apple.'));
+    } finally {
+      setAppleLoading(false);
+    }
+  }
+
   async function google() {
     setGoogleLoading(true);
     setError('');
@@ -231,7 +251,7 @@ export function Login() {
                 Esqueci minha senha
               </AppText>
             </Pressable>
-            <Button label="Entrar" onPress={submitCredentials} loading={loading} disabled={googleLoading} />
+            <Button label="Entrar" onPress={submitCredentials} loading={loading} disabled={googleLoading || appleLoading} />
             <View style={styles.divider}>
               <View style={[styles.line, { backgroundColor: colors.border }]} />
               <AppText variant="caption" color="muted">
@@ -239,7 +259,8 @@ export function Login() {
               </AppText>
               <View style={[styles.line, { backgroundColor: colors.border }]} />
             </View>
-            <GoogleButton onPress={google} loading={googleLoading} disabled={loading} />
+            <AppleButton onPress={apple} loading={appleLoading} disabled={loading || googleLoading} />
+            <GoogleButton onPress={google} loading={googleLoading} disabled={loading || appleLoading} />
           </Animated.View>
         ) : (
           <Animated.View key="code" entering={SlideInRight.duration(260).reduceMotion(ReduceMotion.System)} style={styles.step}>

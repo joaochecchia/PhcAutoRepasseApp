@@ -28,7 +28,7 @@ Ao concluir uma tela, marque-a aqui (`[x]` pronta, `[~]` existe mas está incomp
 | Feito | Funcionalidade | Origem no site | API | No app |
 |---|---|---|---|---|
 | [x] | Login com 2FA por e-mail e dispositivo confiável (sempre conectado) | `LoginPage` | `authApi` | modal |
-| [~] | Login com Google (produção aceita o modo app; falta o login real num build de desenvolvimento) | `SocialAuthButtons` | `/oauth2/authorization/google`, `authApi` social | modal |
+| [x] | Login com Google (testado em 17/11/2026 no build de desenvolvimento do Android contra produção) | `SocialAuthButtons` | `/oauth2/authorization/google`, `authApi` social | modal |
 | [~] | Cadastro PF/PJ com aceite dos termos e ViaCEP (também o cadastro vindo do Google) | `RegisterPage`, `FormFields`, `lib/viacep.ts` | `authApi.register` | modal (`/cadastro`) |
 | [~] | Redefinir senha | `ResetPasswordPage` | `authApi` (redefinições) | modal |
 | [~] | Perfil, foto, troca de senha | `ProfilePage`, `ProfilePhoto` | `authApi.profile`, `uploadProfilePhoto` | Menu |
@@ -87,7 +87,7 @@ Estado em 16/11/2026. Tudo o que está `[~]` compila e gera o bundle Android. As
 - Mensagens: STOMP com o token no cabeçalho do handshake (sem mudança no backend). O Origin que o React Native manda (o do próprio servidor) é aceito como mesma origem. Envio com confirmação, recebimento, entrega e leitura em tempo real conferidos entre duas contas no backend local; sem conexão, volta a atualizar a cada 10 s.
 - Conta (16/11/2026): cadastro em `/cadastro` (PF/PJ, CEP, foto, termos; conta nova do Google sem senha, com o verificador PKCE), senha em `/redefinir-senha` (esqueci e, com `origem=perfil`, troca), Minha conta em `/minha-conta` (dados, foto, senha, baixar dados, excluir em `/minha-conta/excluir`), avisos em `/avisos` (contador no Menu e na aba), fila de espera em `/fila-espera`, e a conferência dos dados como primeiro passo do Anunciar. Testado contra o backend local pela API e pela tela na web; redefinição e troca de senha não foram exercitadas até o fim porque mandam e-mail de verdade (Brevo ligado no backend local). Falta conferir no aparelho.
 - Favoritos: na conta, com mescla dos de visitante ao entrar e desfazer em caso de erro; a aba carrega os cards do servidor.
-- Google: produção aceita `phcauto://auth` e recusa `exp://`, então no Expo Go o Google não fecha contra produção. Testar com build de desenvolvimento ou liberar `exp://` em produção (decisão do usuário).
+- Google: funciona no build de desenvolvimento contra produção (`EXPO_PUBLIC_API_URL=https://phcauto.com`), conferido em 17/11/2026. Produção recusa `exp://`, então no Expo Go não fecha; contra o backend local pelo celular também não (o Google não volta para IP da rede local). O cadastro de conta nova vinda do Google ainda não foi exercitado no aparelho.
 - Planos: lista, preços e "Seu plano". A assinatura abre o site: pagamento no app depende dos pontos em aberto 2 e 3 do AGENTS.md.
 - Privacidade: sem a parte de cookies do site (o app não usa cookies nem o Pixel).
 - Meus anúncios: completo, com Promoções e Lotes. Editar lote: completo.
@@ -95,6 +95,8 @@ Estado em 16/11/2026. Tudo o que está `[~]` compila e gera o bundle Android. As
 - Fora de propósito: aviso de cookies e Meta Pixel (o app não usa nenhum dos dois).
 
 ## Só do app
+
+- [~] Entrar com Apple (só iPhone; exigência da App Store, regra 4.8). Backend e app prontos em 17/11/2026, com testes do token e da rota; não testado num iPhone. Fase 2 pendente: revogar o token da Apple ao excluir a conta (regra 5.1.1) e cadastrar o domínio de e-mail no relay da Apple (ver `phc-app-api`).
 
 Barra inferior, banner para anunciantes, animação de abertura, hápticos e gestos (ver `phc-app-design`).
 

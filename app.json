@@ -10,7 +10,8 @@
     "backgroundColor": "#121315",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.phcauto.app"
+      "bundleIdentifier": "com.phcauto.app",
+      "usesAppleSignIn": true
     },
     "android": {
       "package": "com.phcauto.app",
@@ -58,7 +59,8 @@
           "icon": "./assets/images/android-icon-monochrome.png",
           "color": "#cd1923"
         }
-      ]
+      ],
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true,

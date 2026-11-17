@@ -74,6 +74,22 @@ export const authApi = {
     return finish({ ...response, challengeId: null });
   },
 
+  /**
+   * "Entrar com Apple" (iPhone): o backend confere o token da Apple. Conta ligada volta com a sessão; conta nova
+   * volta com o ticket de cadastro, preso ao desafio PKCE.
+   */
+  async appleSignIn(body: { identityToken: string; nonce: string; nome: string; desafio: string }) {
+    const response = await request<
+      Omit<LoginResponse, 'status'> & { status: 'AUTENTICADO' | 'CADASTRO_NECESSARIO'; cadastroToken?: string }
+    >('/autenticacao/social/apple', { method: 'POST', body });
+    if (response.status === 'CADASTRO_NECESSARIO') {
+      if (!response.cadastroToken) throw new Error('Resposta de cadastro sem ticket');
+      return { kind: 'new-account' as const, ticket: response.cadastroToken };
+    }
+    await finish({ ...response, status: 'AUTENTICADO', challengeId: null });
+    return { kind: 'authenticated' as const };
+  },
+
   /** Dados que o Google confirmou para o cadastro de uma conta nova. */
   socialRegistrationInfo: (ticket: string, signal?: AbortSignal) =>
     request<{ provedor: string; nome: string; email: string; manterConectado: boolean }>(

@@ -27,7 +27,8 @@ const TERMS_URL = 'https://phcauto.com/documentos/termos-uso-politica-privacidad
 
 /**
  * Criar conta, como no site: PF ou PJ, endereço com busca pelo CEP, foto opcional e aceite dos termos vigentes.
- * Vindo do Google (conta nova), não pede senha: nome e e-mail vêm confirmados pelo Google.
+ * Vindo do Google ou da Apple (conta nova), não pede senha: o e-mail vem confirmado por eles. O nome também, salvo
+ * quando a Apple não o envia (só na primeira autorização, e a pessoa pode omiti-lo): aí a pessoa digita.
  * Depois de criar, já entra; se o servidor pedir o código por e-mail, a tela de login abre direto no código.
  */
 export function Register() {
@@ -134,8 +135,8 @@ export function Register() {
       <View style={[styles.root, styles.center, { backgroundColor: colors.bg }]}>
         <Notice
           tone="error"
-          title="O cadastro pelo Google expirou"
-          message="Volte e toque em Continuar com Google de novo."
+          title="O cadastro expirou"
+          message="Volte e entre de novo com Google ou Apple."
           actionLabel="Voltar"
           onAction={() => {
             authHandoff.clearSocial();
@@ -162,7 +163,8 @@ export function Register() {
           <View style={[styles.googleBox, { backgroundColor: colors.dealTint, borderColor: colors.dealBorder }]}>
             <BadgeCheck size={20} color={colors.deal} />
             <AppText color="deal" variant="bodyStrong" style={styles.flex}>
-              Conta Google confirmada. Você não precisa criar senha.
+              {socialInfo.data?.provedor === 'APPLE' ? 'Conta Apple confirmada' : 'Conta Google confirmada'}. Você não
+              precisa criar senha.
             </AppText>
           </View>
         ) : null}
