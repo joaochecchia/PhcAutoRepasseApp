@@ -23,7 +23,7 @@ import { showDialog } from '@/components/dialog';
 import { showInAppNotice } from '@/components/in-app-notice';
 import { useIntroProgress } from '@/hooks/use-intro';
 import { useNoticesSummary } from '@/hooks/use-notices';
-import { useSession } from '@/hooks/use-session';
+import { isStaff, useSession } from '@/hooks/use-session';
 
 /** Mesma chave da tela Menu › Notificações: ativar num lugar atualiza os outros. */
 export const pushStatusKey = ['push-status'] as const;
@@ -170,9 +170,10 @@ function PushEffects() {
     onNoticeRead = () => queryClient.invalidateQueries({ queryKey: ['notices-summary'] });
   }, [queryClient]);
 
+  const staff = session.status === 'authenticated' && isStaff(session.user.papel);
   useEffect(() => {
-    ensurePushChannels().catch(() => undefined);
-  }, []);
+    ensurePushChannels(staff).catch(() => undefined);
+  }, [staff]);
 
   useEffect(() => {
     if (session.status === 'authenticated') syncPush().catch(() => undefined);

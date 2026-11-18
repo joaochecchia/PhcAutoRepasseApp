@@ -54,7 +54,9 @@ const one = (id: string) => `/promocoes/${encodeURIComponent(id)}`;
 
 export const promotionsApi = {
   mine: (signal?: AbortSignal) => request<PromotionsPanel>('/promocoes/minhas', { auth: true, signal }),
-  options: (signal?: AbortSignal) => request<PromotionOption[]>('/promocoes/opcoes', { auth: true, signal }),
+  /** Anúncios e lotes que podem entrar; {@code anuncianteId} de outra conta só para o DONO. */
+  options: (signal?: AbortSignal, anuncianteId?: string | null) =>
+    request<PromotionOption[]>('/promocoes/opcoes', { auth: true, signal, params: { anuncianteId: anuncianteId ?? undefined } }),
   create: (input: PromotionInput) => request<Promotion>('/promocoes', { method: 'POST', body: input, auth: true }),
   update: (id: string, input: PromotionInput) => request<Promotion>(one(id), { method: 'PUT', body: input, auth: true }),
   setActive: (id: string, ativa: boolean) =>

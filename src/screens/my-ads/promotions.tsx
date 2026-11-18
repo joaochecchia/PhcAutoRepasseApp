@@ -140,95 +140,18 @@ export function PromotionsPanel({ header }: { header: ReactNode }) {
         ) : null
       ) : (
         <View style={styles.list}>
-          {data.promocoes.map((promotion) => {
-            const tone = statusTone[promotion.situacao];
-            const busy =
-              (toggle.isPending && toggle.variables?.id === promotion.id) ||
-              (remove.isPending && remove.variables?.id === promotion.id);
-            const canResume = promotion.situacao !== 'SEM_PLANO' && promotion.situacao !== 'ENCERRADA';
-            return (
-              <View key={promotion.id} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <View style={[styles.status, { backgroundColor: colors[tone.bg] }]}>
-                  <AppText variant="label" color={tone.text} style={styles.statusText}>
-                    {statusLabels[promotion.situacao]}
-                  </AppText>
-                </View>
-                <AppText variant="heading">{promotion.titulo}</AppText>
-                <View style={styles.conditions}>
-                  {promotion.condicoes.map((condition, index) => (
-                    <AppText key={condition.tipo} variant={index === 0 ? 'bodyStrong' : 'body'} color={index === 0 ? 'red' : 'text'}>
-                      {condition.resumo}
-                    </AppText>
-                  ))}
-                </View>
-                <View style={styles.meta}>
-                  <CalendarClock size={14} color={colors.muted} />
-                  <AppText variant="caption" color="muted" style={styles.flex}>
-                    {period(promotion)} · {scopeText(promotion)}
-                  </AppText>
-                </View>
-                <View style={styles.actions}>
-                  <Button
-                    label="Editar"
-                    variant="secondary"
-                    icon={<PencilLine size={15} color={colors.text} />}
-                    disabled={busy || !planIncludes}
-                    onPress={() => setEditing(promotion)}
-                    style={styles.flex}
-                  />
-                  {promotion.ativa ? (
-                    <Button
-                      label="Pausar"
-                      variant="secondary"
-                      icon={<Pause size={15} color={colors.text} />}
-                      loading={toggle.isPending && toggle.variables?.id === promotion.id}
-                      disabled={busy}
-                      onPress={() => toggle.mutate(promotion)}
-                      style={styles.flex}
-                    />
-                  ) : (
-                    <Button
-                      label="Retomar"
-                      variant="secondary"
-                      icon={<Play size={15} color={colors.text} />}
-                      loading={toggle.isPending && toggle.variables?.id === promotion.id}
-                      disabled={busy || !canResume}
-                      accessibilityHint={
-                        canResume
-                          ? undefined
-                          : promotion.situacao === 'ENCERRADA'
-                            ? 'Edite a data final para retomar'
-                            : 'O plano atual não inclui promoções'
-                      }
-                      onPress={() => toggle.mutate(promotion)}
-                      style={styles.flex}
-                    />
-                  )}
-                  <Button
-                    label="Excluir"
-                    variant="ghost"
-                    icon={<Trash2 size={15} color={colors.red} />}
-                    disabled={busy}
-                    onPress={() =>
-                      showDialog({
-                        title: 'Excluir promoção?',
-                        message: `${promotion.titulo} sai do app, do site e das etiquetas dos veículos. Para tirar do ar só por um tempo, use "Pausar".`,
-                        actions: [
-                          { label: 'Manter', kind: 'cancel' },
-                          { label: 'Excluir', kind: 'destructive', onPress: () => remove.mutate(promotion) },
-                        ],
-                      })
-                    }
-                  />
-                </View>
-                {!canResume && !promotion.ativa ? (
-                  <AppText variant="caption" color="muted">
-                    {promotion.situacao === 'ENCERRADA' ? 'Edite a data final para retomar.' : 'O plano atual não inclui promoções.'}
-                  </AppText>
-                ) : null}
-              </View>
-            );
-          })}
+          {data.promocoes.map((promotion) => (
+            <PromotionCard
+              key={promotion.id}
+              promotion={promotion}
+              canEdit={planIncludes}
+              toggling={toggle.isPending && toggle.variables?.id === promotion.id}
+              busy={(toggle.isPending && toggle.variables?.id === promotion.id) || (remove.isPending && remove.variables?.id === promotion.id)}
+              onEdit={() => setEditing(promotion)}
+              onToggle={() => toggle.mutate(promotion)}
+              onDelete={() => remove.mutate(promotion)}
+            />
+          ))}
         </View>
       )}
       <PromotionEditor
@@ -241,6 +164,114 @@ export function PromotionsPanel({ header }: { header: ReactNode }) {
           refresh();
         }}
       />
+    </View>
+  );
+}
+
+/** Cartão de uma promoção: situação, condições, período e ações. {@code showStore}: painel do DONO. */
+export function PromotionCard({
+  promotion,
+  canEdit,
+  busy,
+  toggling,
+  showStore,
+  onEdit,
+  onToggle,
+  onDelete,
+}: {
+  promotion: Promotion;
+  canEdit: boolean;
+  busy: boolean;
+  toggling: boolean;
+  showStore?: boolean;
+  onEdit: () => void;
+  onToggle: () => void;
+  onDelete: () => void;
+}) {
+  const { colors } = useTheme();
+  const tone = statusTone[promotion.situacao];
+  const canResume = promotion.situacao !== 'SEM_PLANO' && promotion.situacao !== 'ENCERRADA';
+  return (
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={[styles.status, { backgroundColor: colors[tone.bg] }]}>
+        <AppText variant="label" color={tone.text} style={styles.statusText}>
+          {statusLabels[promotion.situacao]}
+        </AppText>
+      </View>
+      {showStore && promotion.nomeAnunciante ? (
+        <AppText variant="caption" color="muted">
+          {promotion.nomeAnunciante}
+        </AppText>
+      ) : null}
+      <AppText variant="heading">{promotion.titulo}</AppText>
+      <View style={styles.conditions}>
+        {promotion.condicoes.map((condition, index) => (
+          <AppText key={condition.tipo} variant={index === 0 ? 'bodyStrong' : 'body'} color={index === 0 ? 'red' : 'text'}>
+            {condition.resumo}
+          </AppText>
+        ))}
+      </View>
+      <View style={styles.meta}>
+        <CalendarClock size={14} color={colors.muted} />
+        <AppText variant="caption" color="muted" style={styles.flex}>
+          {period(promotion)} · {scopeText(promotion)}
+        </AppText>
+      </View>
+      <View style={styles.actions}>
+        <Button
+          label="Editar"
+          variant="secondary"
+          icon={<PencilLine size={15} color={colors.text} />}
+          disabled={busy || !canEdit}
+          onPress={onEdit}
+          style={styles.flex}
+        />
+        {promotion.ativa ? (
+          <Button
+            label="Pausar"
+            variant="secondary"
+            icon={<Pause size={15} color={colors.text} />}
+            loading={toggling}
+            disabled={busy}
+            onPress={onToggle}
+            style={styles.flex}
+          />
+        ) : (
+          <Button
+            label="Retomar"
+            variant="secondary"
+            icon={<Play size={15} color={colors.text} />}
+            loading={toggling}
+            disabled={busy || !canResume}
+            accessibilityHint={
+              canResume ? undefined : promotion.situacao === 'ENCERRADA' ? 'Edite a data final para retomar' : 'O plano atual não inclui promoções'
+            }
+            onPress={onToggle}
+            style={styles.flex}
+          />
+        )}
+        <Button
+          label="Excluir"
+          variant="ghost"
+          icon={<Trash2 size={15} color={colors.red} />}
+          disabled={busy}
+          onPress={() =>
+            showDialog({
+              title: 'Excluir promoção?',
+              message: `${promotion.titulo} sai do app, do site e das etiquetas dos veículos. Para tirar do ar só por um tempo, use "Pausar".`,
+              actions: [
+                { label: 'Manter', kind: 'cancel' },
+                { label: 'Excluir', kind: 'destructive', onPress: onDelete },
+              ],
+            })
+          }
+        />
+      </View>
+      {!canResume && !promotion.ativa ? (
+        <AppText variant="caption" color="muted">
+          {promotion.situacao === 'ENCERRADA' ? 'Edite a data final para retomar.' : 'O plano atual não inclui promoções.'}
+        </AppText>
+      ) : null}
     </View>
   );
 }

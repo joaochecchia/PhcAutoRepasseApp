@@ -1,7 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
-import * as WebBrowser from 'expo-web-browser';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { Check, Clock3, Minus, ShieldCheck, Sparkles, WifiOff } from 'lucide-react-native';
+import { Barcode, Check, CircleAlert, Clock3, CreditCard, Minus, QrCode, RefreshCw, ShieldCheck, Sparkles, Undo2, WifiOff } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +9,7 @@ import { plansApi, type Periodicidade, type PublicPlan } from '@/api/plans';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { Chip } from '@/components/chip';
+import { showDialog } from '@/components/dialog';
 import { Notice } from '@/components/notice';
 import { Skeleton } from '@/components/skeleton';
 import { StateView } from '@/components/state-view';
@@ -33,8 +33,9 @@ import { radius, space } from '@/theme';
 type Audience = 'PF' | 'PJ';
 
 /**
- * Planos e preços, com o plano atual de quem está logado (PlansPage do site). A contratação ainda acontece no site:
- * o pagamento no app depende das decisões sobre cartão e regras das lojas (AGENTS.md, pontos em aberto 2 e 3).
+ * Planos e preços, com o plano atual de quem está logado (PlansPage do site): assinar e renovar abrem o pagamento no
+ * app (/assinar); em Seu plano, confirmar a renovação recusada, desligar a renovação automática, pedir reembolso e
+ * retomar o Pix ou boleto em aberto.
  */
 export function PlansScreen() {
   const { colors } = useTheme();
@@ -44,23 +45,68 @@ export function PlansScreen() {
   const [chosenAudience, setAudience] = useState<Audience | null>(null);
   const [periodicidade, setPeriodicidade] = useState<Periodicidade>('MENSAL');
 
+  const queryClient = useQueryClient();
   const plans = useQuery({ queryKey: ['plans'], queryFn: ({ signal }) => plansApi.list(signal) });
+  // Planos de teste aparecem só para contas liberadas no backend; sem eles a tela segue normal.
+  const internal = useQuery({
+    queryKey: ['plans-internal', signedIn],
+    queryFn: ({ signal }) => plansApi.internal(signal),
+    enabled: signedIn,
+  });
   const mine = useQuery({ queryKey: ['subscription'], queryFn: ({ signal }) => plansApi.mine(signal), enabled: signedIn });
+  const action = useMutation({
+    mutationFn: async (kind: 'desligar' | 'reembolso') => {
+      if (kind === 'desligar') {
+        await plansApi.cancelAutoRenewal();
+        return 'Renovação automática desligada. O plano vale até o fim do período pago.';
+      }
+      const refund = mine.data?.reembolso;
+      if (!refund) throw new Error('O prazo de reembolso deste plano terminou.');
+      return (await plansApi.refund(refund.assinaturaId)).mensagem;
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['subscription'] }),
+  });
   const profile = useAccount();
   const tipoPessoa = profile.data?.tipoPessoa ?? null;
   // Começa no tipo da conta; sem sessão, pessoa física.
   const audience: Audience = chosenAudience ?? tipoPessoa ?? 'PF';
   const visible = useMemo(
-    () => (plans.data ?? []).filter((plan) => plan.publico === 'TODOS' || plan.publico === audience),
-    [plans.data, audience],
+    () =>
+      [...(plans.data ?? []), ...(internal.data ?? [])].filter((plan) => plan.publico === 'TODOS' || plan.publico === audience),
+    [plans.data, internal.data, audience],
   );
   const offered = useMemo(
     () => new Set(visible.flatMap((plan) => plan.precos.map((preco) => preco.periodicidade))),
     [visible],
   );
   const current = mine.data?.atual ?? null;
+  const renewal = mine.data?.recorrencia ?? null;
+  const refund = mine.data?.reembolso ?? null;
+  const pending = mine.data?.cobrancaPendente ?? null;
+  const pendingPayable = (pending?.metodo === 'PIX' && pending.pix) || (pending?.metodo === 'BOLETO' && pending.boleto);
 
-  const subscribe = () => WebBrowser.openBrowserAsync('https://phcauto.com/planos');
+  function subscribe(plan: PublicPlan) {
+    if (!signedIn) {
+      router.push('/entrar');
+      return;
+    }
+    router.push({ pathname: '/assinar', params: { plano: plan.codigo, periodicidade } });
+  }
+
+  function confirmAction(kind: 'desligar' | 'reembolso') {
+    action.reset();
+    showDialog({
+      title: kind === 'desligar' ? 'Desligar a renovação automática?' : 'Cancelar com reembolso?',
+      message:
+        kind === 'desligar'
+          ? 'O plano continua até o fim do período pago.'
+          : `O plano acaba agora e ${money(refund?.valorCentavos ?? 0)} voltam pelo mesmo meio de pagamento.`,
+      actions: [
+        { label: 'Voltar', kind: 'cancel' },
+        { label: kind === 'desligar' ? 'Desligar' : 'Cancelar e reembolsar', kind: 'destructive', onPress: () => action.mutate(kind) },
+      ],
+    });
+  }
 
   return (
     <ScrollView
@@ -122,11 +168,64 @@ export function PlansScreen() {
                   </AppText>
                 </View>
               ))}
-              {mine.data?.recorrencia?.status === 'ATIVA' ? (
-                <AppText variant="caption" color="muted">
-                  Renova em {formatDate(mine.data.recorrencia.proximaCobrancaEm)} no cartão final{' '}
-                  {mine.data.recorrencia.cartao.finalNumero ?? '—'}.
-                </AppText>
+              {renewal?.status === 'ATIVA' ? (
+                <View style={styles.inline}>
+                  <RefreshCw size={14} color={colors.muted} />
+                  <AppText variant="caption" color="muted" style={styles.flex}>
+                    Renova em {formatDate(renewal.proximaCobrancaEm)} no cartão {renewal.cartao.bandeira ?? ''} final{' '}
+                    {renewal.cartao.finalNumero ?? '—'}
+                    {renewal.parcelas > 1 ? ` (${renewal.parcelas}x)` : ''}.
+                  </AppText>
+                </View>
+              ) : null}
+              {renewal?.status === 'AGUARDANDO_CLIENTE' ? (
+                <View style={styles.alert}>
+                  <Notice tone="error" message={renewal.mensagem} />
+                  <Button
+                    label={`Confirmar renovação de ${money(renewal.valorCentavos)}`}
+                    icon={<CreditCard size={16} color={colors.onRed} />}
+                    onPress={() => router.push({ pathname: '/assinar', params: { modo: 'confirmar' } })}
+                  />
+                </View>
+              ) : null}
+              {pendingPayable && pending ? (
+                <Button
+                  label={`${pending.metodo === 'BOLETO' ? 'Boleto' : 'Pix'} de ${money(pending.valorCentavos)} aguardando pagamento`}
+                  variant="secondary"
+                  icon={
+                    pending.metodo === 'BOLETO' ? <Barcode size={16} color={colors.text} /> : <QrCode size={16} color={colors.text} />
+                  }
+                  onPress={() => router.push({ pathname: '/assinar', params: { modo: 'retomar' } })}
+                />
+              ) : null}
+              {renewal ? (
+                <Button
+                  label="Desligar renovação automática"
+                  variant="ghost"
+                  icon={<RefreshCw size={16} color={colors.red} />}
+                  loading={action.isPending && action.variables === 'desligar'}
+                  disabled={action.isPending}
+                  onPress={() => confirmAction('desligar')}
+                />
+              ) : null}
+              {refund ? (
+                <Button
+                  label={`Cancelar com reembolso (até ${formatDate(refund.ate)})`}
+                  variant="ghost"
+                  icon={<Undo2 size={16} color={colors.red} />}
+                  loading={action.isPending && action.variables === 'reembolso'}
+                  disabled={action.isPending}
+                  onPress={() => confirmAction('reembolso')}
+                />
+              ) : null}
+              {action.isSuccess ? <Notice tone="success" message={action.data} /> : null}
+              {action.isError ? (
+                <Notice
+                  tone="error"
+                  message={action.error.message}
+                  actionLabel="Tentar de novo"
+                  onAction={() => action.variables && action.mutate(action.variables)}
+                />
               ) : null}
             </>
           ) : (
@@ -188,7 +287,7 @@ export function PlansScreen() {
             wrongAudience={Boolean(tipoPessoa) && plan.publico !== 'TODOS' && plan.publico !== tipoPessoa}
             signedIn={signedIn}
             onMonthly={() => setPeriodicidade('MENSAL')}
-            onSubscribe={subscribe}
+            onSubscribe={() => subscribe(plan)}
           />
         ))
       )}
@@ -196,9 +295,10 @@ export function PlansScreen() {
       <View style={styles.inline}>
         <ShieldCheck size={16} color={colors.muted} />
         <AppText variant="caption" color="muted" style={styles.flex}>
-          Pagamento por Pix, cartão de crédito, débito ou boleto, processado pela Cielo. Desistiu? Peça o reembolso
-          integral em até 7 dias da contratação. Itens “em breve” passam a valer para quem já tem o plano, sem custo
-          extra.
+          Pagamento por Pix, cartão de crédito, débito ou boleto, processado pela Cielo. No crédito, os planos mensal e
+          anual renovam sozinhos no cartão salvo pela Cielo; você desliga quando quiser. Desistiu? Peça o reembolso
+          integral em até 7 dias da contratação (no boleto, pelo WhatsApp da PHC Auto). Itens “em breve” passam a valer
+          para quem já tem o plano, sem custo extra.
         </AppText>
       </View>
     </ScrollView>
@@ -287,9 +387,8 @@ function PlanCard({
         <Button label="Ver preço mensal" variant="secondary" onPress={onMonthly} />
       ) : (
         <Button
-          label={isCurrent ? 'Renovar no site' : `Assinar ${plan.nome} no site`}
+          label={isCurrent ? 'Renovar plano' : `Assinar ${plan.nome}`}
           variant={featured || isCurrent ? 'primary' : 'secondary'}
-          accessibilityHint="Abre a página de planos do PHC Auto para concluir o pagamento"
           onPress={onSubscribe}
         />
       )}
@@ -319,6 +418,7 @@ const styles = StyleSheet.create({
   intro: { gap: space.xs },
   mine: { padding: space.lg, borderRadius: radius.lg, gap: space.xs },
   inline: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs },
+  alert: { gap: space.sm, marginTop: space.xs },
   group: { gap: space.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   card: { padding: space.lg, borderRadius: radius.lg, gap: space.sm },

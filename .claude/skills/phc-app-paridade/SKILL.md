@@ -67,15 +67,17 @@ Visível só para os papéis de admin e dono, conforme `papel` da sessão. As ab
 
 | Feito | Funcionalidade | Origem no site | API |
 |---|---|---|---|
-| [ ] | Observabilidade | `AdminObservability` | `adminApi.observability` (`GET /admin/observabilidade`) |
-| [ ] | Usuários, papéis e assinaturas cortesia | `AdminUsers` | `adminApi` |
-| [ ] | Limite de anúncios | `AdminAdLimit` | `adLimitReleaseApi` |
-| [ ] | Anúncios impulsionados | `AdminBoosts`, `AdBoostPanel` | `boostsApi` |
-| [ ] | Banners da página inicial (alimentam o carrossel do Início) | `AdminBanners`, `BannerPreviewFrame` | `adminApi` (banners) |
-| [ ] | Promoções de anúncios | `AdminPage` (aba promoções) | `adminApi` (promoções) |
-| [ ] | Moderação de conversas | `AdminChats` | `chatModerationApi` |
+| [~] | Observabilidade (com os alertas do monitor) | `AdminObservability` | `adminApi.observability` (`GET /admin/observabilidade`) |
+| [~] | Usuários, papéis e assinaturas cortesia | `AdminUsers` | `adminApi` |
+| [~] | Limite de anúncios | `AdminAdLimit` | `adLimitReleaseApi` |
+| [~] | Anúncios impulsionados (lista e painel no detalhe do anúncio) | `AdminBoosts`, `AdBoostPanel` | `boostsApi` |
+| [~] | Banners da página inicial (alimentam o carrossel do Início) | `AdminBanners`, `BannerPreviewFrame` | `adminApi` (banners) |
+| [~] | Promoções de anúncios | `AdminPage` (aba promoções) | `adminApi` (promoções) |
+| [~] | Moderação de conversas | `AdminChats` | `chatModerationApi` |
 
 O servidor é quem autoriza. Esconder a tela no app é só conveniência.
+
+No app (17/11/2026): Menu › Administração abre `/admin` (rotas em `src/app/admin`, telas em `src/screens/admin`, chamadas em `src/api/admin.ts`). `AdminGate` esconde as áreas: `owner` para usuários, limite e promoções. O impulso de um anúncio fica no detalhe do veículo para ADMIN e DONO (`AdBoostPanel`). Promoções do dono reaproveitam `PromotionCard` e `PromotionEditor` de Meus anúncios. No editor de banner a prévia usa o mesmo `HeroCarousel` do Início e o ponto de foco é marcado tocando na imagem. Compila e passa no lint; não foi exercitado com login de admin (a senha do Dono local não estava disponível) nem conferido no aparelho.
 
 ## Pendências das telas parciais
 
@@ -97,6 +99,8 @@ Estado em 16/11/2026. Tudo o que está `[~]` compila e gera o bundle Android. As
 ## Só do app
 
 - [~] Entrar com Apple (só iPhone; exigência da App Store, regra 4.8). Backend e app prontos em 17/11/2026, com testes do token e da rota; não testado num iPhone. Fase 2 pendente: revogar o token da Apple ao excluir a conta (regra 5.1.1) e cadastrar o domínio de e-mail no relay da Apple (ver `phc-app-api`).
+
+- [~] Alertas operacionais no celular de ADMIN e DONO (17/11/2026, com mudança no backend pedida pelo usuário): `MonitorOperacional` confere a cada minuto bancos, Redis, sincronização do banco de leitura, Brevo, Parallelum, Cielo, Expo, Google, Apple, cota diária da FIPE e picos de 5xx; avisa por push ("Fora do ar", "Ainda fora do ar" a cada 2 h, "Voltou"). Preferência "Alertas do sistema" em Menu › Notificações, com envio de teste. Ver `phc-app-api`.
 
 Barra inferior, banner para anunciantes, animação de abertura, hápticos e gestos (ver `phc-app-design`).
 

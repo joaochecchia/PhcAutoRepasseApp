@@ -77,8 +77,8 @@ const explore: Item[] = [
 ];
 
 const admin: Item[] = [
-  { icon: LayoutDashboard, label: 'Painel administrativo', onPress: soon('Painel administrativo') },
-  { icon: Activity, label: 'Observabilidade', onPress: soon('Observabilidade') },
+  { icon: LayoutDashboard, label: 'Painel administrativo', onPress: () => router.push('/admin') },
+  { icon: Activity, label: 'Observabilidade', onPress: () => router.push('/admin/observabilidade') },
 ];
 
 const papelLabels: Record<string, string> = { CLIENTE: 'Cliente', ADMIN: 'Administrador', DONO: 'Dono' };

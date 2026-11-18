@@ -6,13 +6,14 @@ import { useEffect } from 'react';
 import { AppState, Linking, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { adminApi } from '@/api/admin';
 import { pushKinds, pushStatus, savePushPrefs, syncPush, type PushKind, type PushStatus, type PushSupport } from '@/api/push';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { Notice } from '@/components/notice';
 import { Skeleton } from '@/components/skeleton';
 import { StateView } from '@/components/state-view';
-import { useSession } from '@/hooks/use-session';
+import { isStaff, useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, space, touch } from '@/theme';
 
@@ -32,6 +33,13 @@ export function NotificationSettingsScreen() {
   const session = useSession();
   const queryClient = useQueryClient();
   const status = useQuery({ queryKey: statusKey, queryFn: pushStatus, staleTime: 0 });
+  const staff = session.status === 'authenticated' && isStaff(session.user.papel);
+  const test = useMutation({
+    mutationFn: adminApi.testAlert,
+    onSuccess: ({ aparelhos }) => {
+      if (aparelhos > 0) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+  });
 
   // Voltando dos ajustes do aparelho, a permissão pode ter mudado.
   useEffect(() => {
@@ -113,7 +121,7 @@ export function NotificationSettingsScreen() {
         </View>
       ) : (
         <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          {pushKinds.map((item, index) => (
+          {pushKinds.filter((item) => staff || !item.staffOnly).map((item, index) => (
             <View
               key={item.kind}
               style={[styles.row, index > 0 && { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
@@ -139,6 +147,32 @@ export function NotificationSettingsScreen() {
         </View>
       )}
 
+      {staff && data?.support === 'ok' && data.permission === 'granted' && data.prefs.SISTEMA ? (
+        <View style={styles.testBlock}>
+          <AppText variant="caption" color="muted">
+            Confira se os alertas chegam neste aparelho. O teste vai só para os seus aparelhos.
+          </AppText>
+          <Button
+            label="Enviar alerta de teste"
+            variant="secondary"
+            loading={test.isPending}
+            disabled={save.isPending}
+            onPress={() => test.mutate()}
+          />
+          {test.isSuccess ? (
+            <Notice
+              tone={test.data.aparelhos > 0 ? 'success' : 'info'}
+              message={
+                test.data.aparelhos > 0
+                  ? `Enviado para ${test.data.aparelhos === 1 ? '1 aparelho' : `${test.data.aparelhos} aparelhos`}. Deve chegar em alguns segundos.`
+                  : 'Nenhum aparelho seu está registrado com os alertas ligados. Desligue e ligue a chave acima e tente de novo.'
+              }
+            />
+          ) : null}
+          {test.isError ? <Notice tone="error" message={test.error.message} /> : null}
+        </View>
+      ) : null}
+
       {save.isError ? (
         <Notice
           tone="error"
@@ -152,6 +186,7 @@ export function NotificationSettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  testBlock: { gap: space.sm },
   root: { flex: 1 },
   content: { padding: space.lg, gap: space.lg },
   flex: { flex: 1, gap: 2 },

@@ -132,18 +132,30 @@ type Props = {
   promotion: Promotion | null | undefined;
   onClose: () => void;
   onSaved: (promotion: Promotion, created: boolean) => void;
+  /** Painel do DONO: as opções são as do anunciante da promoção, não as da conta logada. */
+  anuncianteId?: string | null;
 };
 
 /** Criar e editar promoção (PromotionEditor do site), numa folha cheia. */
-export function PromotionEditor({ promotion, onClose, onSaved }: Props) {
+export function PromotionEditor({ promotion, onClose, onSaved, anuncianteId }: Props) {
   return (
     <Modal visible={promotion !== undefined} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      {promotion !== undefined ? <EditorBody key={promotion?.id ?? 'new'} promotion={promotion} onClose={onClose} onSaved={onSaved} /> : null}
+      {promotion !== undefined ? <EditorBody key={promotion?.id ?? 'new'} promotion={promotion} onClose={onClose} onSaved={onSaved} anuncianteId={anuncianteId} /> : null}
     </Modal>
   );
 }
 
-function EditorBody({ promotion, onClose, onSaved }: { promotion: Promotion | null; onClose: () => void; onSaved: Props['onSaved'] }) {
+function EditorBody({
+  promotion,
+  onClose,
+  onSaved,
+  anuncianteId,
+}: {
+  promotion: Promotion | null;
+  onClose: () => void;
+  onSaved: Props['onSaved'];
+  anuncianteId?: string | null;
+}) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const editing = Boolean(promotion);
@@ -163,7 +175,10 @@ function EditorBody({ promotion, onClose, onSaved }: { promotion: Promotion | nu
   const [filter, setFilter] = useState('');
   const [error, setError] = useState('');
 
-  const options = useQuery({ queryKey: ['promotion-options'], queryFn: ({ signal }) => promotionsApi.options(signal) });
+  const options = useQuery({
+    queryKey: ['promotion-options', anuncianteId ?? 'mine'],
+    queryFn: ({ signal }) => promotionsApi.options(signal, anuncianteId),
+  });
   const available = useMemo(() => new Set((options.data ?? []).map((option) => option.id)), [options.data]);
   // Vendidos e excluídos somem das opções: a seleção guarda só o que ainda pode entrar.
   const chosen = options.data ? [...selected].filter((id) => available.has(id)) : [...selected];

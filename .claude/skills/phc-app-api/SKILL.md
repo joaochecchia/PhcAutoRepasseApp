@@ -74,6 +74,15 @@ Adicionadas em 17/11/2026, com mudança no backend aprovada pelo usuário. Todo 
 - App: `src/api/push.ts` (registro, preferências, canais), `src/hooks/use-push.tsx` (registro com a sessão, toque, número no ícone) e Menu › Notificações. A permissão do sistema só aparece depois de um convite do app: na primeira abertura (diálogo depois da animação da logo, uma vez por aparelho, chave `phc.push.convite`), no cartão do topo de Mensagens (`PushPrompt`, enquanto não houver permissão; recusada no sistema, abre os ajustes), depois de mandar uma mensagem ou entrar na fila, ou pelo botão em Notificações. Sem sessão, `askPushPermission` só pede a permissão; o registro sai ao entrar na conta.
 - **Não funciona no Expo Go do Android** (o push remoto saiu do Expo Go no SDK 53) nem no simulador do iOS. Teste com build de desenvolvimento. O token exige o `projectId` do EAS (`eas init` grava em `app.json › extra.eas.projectId`); sem ele, a tela de Notificações explica o motivo.
 
+### Alertas do sistema (17/11/2026)
+
+Tipo de push `SISTEMA`, só para contas ADMIN e DONO (o papel é conferido a cada envio, no `join` com `identidade.usuarios`, não no registro do aparelho). O app manda `SISTEMA` em `tipos` quando a chave "Alertas do sistema" está ligada; o canal do Android `sistema` só é criado para quem é da administração.
+
+- Backend: `infra/observability/MonitorOperacional` roda a cada `ALERTAS_APP_INTERVALO` (60 s). Um problema vira alerta depois de 2 verificações seguidas, é lembrado a cada 2 h e gera "Voltou" quando passa. Sinais: bancos e Redis (`DependencyAvailabilityMetrics`), atraso da projeção (10 min), fornecedores pelas chamadas reais dos últimos 15 min (`ChamadasExternas.janela`: 3 falhas seguidas, ou metade de 5 ou mais), sondas ativas a cada 5 min sem cota (`SondaExterna`: descoberta OpenID do Google, chaves da Apple, `GET /v3/account` da Brevo), cota diária da FIPE a 90% e 20 respostas 5xx em 5 min. Sem chamada na janela, o estado do fornecedor não muda (Parallelum e Cielo não têm sonda, para não gastar cota).
+- Entrega: `notificacoes.internal.AlertasPushService` (implementa `DestinoAlertas`) com link `/admin/observabilidade` e canal `sistema`. Guarda na memória os aparelhos da última leitura, para avisar mesmo com o banco principal fora.
+- `GET /admin/observabilidade` ganhou `alertas: { ativos, recentes }` (na memória da instância; somem ao reiniciar). `POST /admin/observabilidade/alertas/teste` (ADMIN e DONO) manda um alerta só aos aparelhos de quem pediu e devolve `{ aparelhos }`.
+- Desligar: `ALERTAS_APP_ENABLED=false`. O estado é por instância; com mais de uma réplica, cada uma mandaria os seus alertas.
+
 ## Upload
 
 Fotos (até 8), vídeo (até 30 s) e laudo vão em `multipart/form-data`, com os timeouts longos do site (60 a 120 s). O site reduz a foto e remove os metadados, inclusive GPS, antes de enviar (`prepareImage.ts`); o app faz o equivalente com `expo-image-manipulator`. As regras de mídia vêm de `GET /anuncios/midias/regras`.

@@ -90,6 +90,7 @@ function Navigation() {
           <Stack.Screen name="lote/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="privacidade" options={{ title: 'Privacidade', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="planos" options={{ title: 'Planos e preços', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="assinar" options={{ presentation: 'modal', title: 'Pagamento', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="tabela-fipe" options={{ title: 'Tabela FIPE', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="patio" options={{ title: 'Pátio PHC Auto', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="lojistas" options={{ title: 'Lojistas', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
@@ -109,6 +110,18 @@ function Navigation() {
           <Stack.Screen name="meus-anuncios/estatisticas" options={{ title: 'Estatísticas', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="mensagens/index" options={{ title: 'Mensagens', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="mensagens/[id]" options={{ title: 'Conversa', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="admin/index" options={{ title: 'Painel administrativo', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="admin/observabilidade" options={{ title: 'Observabilidade', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="admin/usuarios/index" options={{ title: 'Usuários', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="admin/usuarios/[id]" options={{ title: 'Conta', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="admin/usuarios/novo" options={{ presentation: 'modal', title: 'Novo usuário', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="admin/limite" options={{ title: 'Limite de anúncios', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="admin/impulsos" options={{ title: 'Impulsionados', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="admin/promocoes" options={{ title: 'Promoções', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="admin/banners/index" options={{ title: 'Banners', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="admin/banners/[id]" options={{ title: 'Banner', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="admin/conversas/index" options={{ title: 'Conversas', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="admin/conversas/[id]" options={{ title: 'Conversa', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen
             name="anunciar"
             options={{

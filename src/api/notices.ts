@@ -11,9 +11,13 @@ export const noticesApi = {
     request<void>('/notificacoes/lidas', { method: 'POST', body: { ids: ids ?? [] }, auth: true }),
 };
 
-/** O link do aviso é um caminho do site; no app só seguem os que existem como tela (anúncio, lote, conversa). */
-type NoticeRoute = `/anuncio/${string}` | `/lote/${string}` | `/mensagens/${string}`;
+/**
+ * O link do aviso é um caminho do site; no app só seguem os que existem como tela (anúncio, lote, conversa e, nos
+ * alertas do sistema, a observabilidade).
+ */
+type NoticeRoute = `/anuncio/${string}` | `/lote/${string}` | `/mensagens/${string}` | '/admin/observabilidade';
 export function noticeRoute(link: string): NoticeRoute | null {
+  if (link === '/admin/observabilidade') return link;
   const match = /^\/(anuncio|lote|mensagens)\/([A-Za-z0-9-]{1,64})$/.exec(link);
   return match ? (`/${match[1]}/${match[2]}` as NoticeRoute) : null;
 }

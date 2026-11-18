@@ -67,7 +67,8 @@ import { VehiclePromotions } from '@/components/promotions';
 import { Skeleton } from '@/components/skeleton';
 import { StateView } from '@/components/state-view';
 import { MediaGallery } from '@/components/media-gallery';
-import { useSession } from '@/hooks/use-session';
+import { isStaff, useSession } from '@/hooks/use-session';
+import { AdBoostPanel } from '@/screens/admin/ad-boost-panel';
 import { useTheme } from '@/hooks/use-theme';
 import { conditionLabels, formatCents, formatCount, formatKm, formatLocation, formatPrice, formatYears, humanize } from '@/utils/format';
 import { radius, space, touch } from '@/theme';
@@ -119,6 +120,7 @@ export function VehicleDetail({ id }: { id: string }) {
   const session = useSession();
   const signedIn = session.status === 'authenticated';
   const ownAd = session.status === 'authenticated' && ad.data?.anuncianteId === session.user.usuarioId;
+  const staff = session.status === 'authenticated' && isStaff(session.user.papel);
   const loaded = Boolean(ad.data);
   // Conta a visita para as estatísticas do anunciante (o backend ignora repetições e o próprio dono).
   useEffect(() => {
@@ -286,6 +288,8 @@ export function VehicleDetail({ id }: { id: string }) {
                   </View>
                   {openStore ? <ChevronRight size={20} color={colors.muted} /> : null}
                 </Pressable>
+
+                {staff ? <AdBoostPanel anuncioId={detail.id} /> : null}
 
                 {ownAd ? null : (
                   <Pressable

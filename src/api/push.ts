@@ -7,13 +7,23 @@ import { Platform } from 'react-native';
 import { request } from './client';
 import { secureStorage } from './secure-storage';
 
-/** Tipos de aviso que o backend manda por push (AvisosUsuario.Tipo). */
-export type PushKind = 'CHAT' | 'FILA_ESPERA';
+/**
+ * Tipos de aviso que o backend manda por push (AvisosUsuario.Tipo) e SISTEMA, os alertas de serviços fora do ar.
+ * O servidor só manda SISTEMA para contas ADMIN e DONO, conferindo o papel a cada envio.
+ */
+export type PushKind = 'CHAT' | 'FILA_ESPERA' | 'SISTEMA';
 export type PushPrefs = Record<PushKind, boolean>;
 
-export const pushKinds: { kind: PushKind; label: string; hint: string; channel: string }[] = [
+export const pushKinds: { kind: PushKind; label: string; hint: string; channel: string; staffOnly?: boolean }[] = [
   { kind: 'CHAT', label: 'Mensagens', hint: 'Quando alguém responder numa conversa.', channel: 'mensagens' },
   { kind: 'FILA_ESPERA', label: 'Fila de espera', hint: 'Quando chegar um veículo do seu pedido.', channel: 'fila-espera' },
+  {
+    kind: 'SISTEMA',
+    label: 'Alertas do sistema',
+    hint: 'Serviço fora do ar (banco, Redis, Brevo, FIPE, Cielo, Google, Apple), cota da FIPE no fim e picos de erro.',
+    channel: 'sistema',
+    staffOnly: true,
+  },
 ];
 
 /**
@@ -30,7 +40,7 @@ export type PushStatus = {
 };
 
 const KEYS = { token: 'phc.push.token', prefs: 'phc.push.prefs' } as const;
-const defaultPrefs: PushPrefs = { CHAT: true, FILA_ESPERA: true };
+const defaultPrefs: PushPrefs = { CHAT: true, FILA_ESPERA: true, SISTEMA: true };
 
 export const pushApi = {
   register: (body: { token: string; plataforma: 'ios' | 'android'; tipos: PushKind[] }) =>
@@ -71,11 +81,14 @@ export async function pushStatus(): Promise<PushStatus> {
   return { support, permission: current.status, canAsk: current.canAskAgain, prefs };
 }
 
-/** Canais do Android (o backend escolhe pelo tipo). Precisam existir antes do pedido de permissão do Android 13+. */
-export async function ensurePushChannels() {
+/**
+ * Canais do Android (o backend escolhe pelo tipo). Precisam existir antes do pedido de permissão do Android 13+. O de
+ * alertas do sistema só aparece nos ajustes do aparelho de quem é da administração.
+ */
+export async function ensurePushChannels(staff = false) {
   if (Platform.OS !== 'android') return;
   await Promise.all([
-    ...pushKinds.map((item) =>
+    ...pushKinds.filter((item) => staff || !item.staffOnly).map((item) =>
       Notifications.setNotificationChannelAsync(item.channel, {
         name: item.label,
         description: item.hint,
