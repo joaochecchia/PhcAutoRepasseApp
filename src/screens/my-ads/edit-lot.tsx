@@ -541,7 +541,7 @@ function LotForm({ initialLot, template }: { initialLot: Lot; template: AdForEdi
               </View>
             ) : rules.data ? (
               <AppText variant="caption" color="muted">
-                Vídeo e laudo ficam disponíveis quando o plano da conta inclui mídia adicional.
+                O seu plano atual não inclui vídeo e laudo.
               </AppText>
             ) : null}
           </View>

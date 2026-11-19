@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { router, useNavigation } from 'expo-router';
-import { Ban, Check, CheckCheck, Ellipsis, Lock, SendHorizontal, WifiOff } from 'lucide-react-native';
+import { Ban, Check, CheckCheck, Lock, SendHorizontal, WifiOff } from 'lucide-react-native';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -88,45 +88,42 @@ export function ConversationScreen({ id }: { id: string }) {
     [],
   );
 
-  const openOptions = useCallback(() => {
-    const lastTheirs = list.find((message) => message.autorId !== userId);
+  const confirmBlock = useCallback(() => {
     showDialog({
-      title: other,
-      message: lastTheirs
-        ? 'Para denunciar outra mensagem, toque e segure nela.'
-        : 'Bloqueado, nenhum dos dois manda mensagens ao outro. Dá para desbloquear depois.',
+      title: `Bloquear ${other}?`,
+      message: 'Nenhum dos dois manda mensagens ao outro. Dá para desbloquear depois.',
       actions: [
         { label: 'Cancelar', kind: 'cancel' },
-        ...(lastTheirs ? [{ label: 'Denunciar a última mensagem', onPress: () => reportMessage(lastTheirs) }] : []),
-        blocked
-          ? { label: 'Desbloquear', onPress: () => toggleBlock.mutate(false) }
-          : {
-              label: `Bloquear ${other}`,
-              kind: 'destructive' as const,
-              onPress: () => toggleBlock.mutate(true),
-            },
+        { label: 'Bloquear', kind: 'destructive', onPress: () => toggleBlock.mutate(true) },
       ],
     });
-  }, [list, userId, other, blocked, reportMessage, toggleBlock]);
+  }, [other, toggleBlock]);
 
+  // Bloqueado, o desbloquear fica no rodapé; o botão do topo só aparece depois de saber o estado.
+  const canBlock = Boolean(otherId && blocks.data && !blocked);
+  const blocking = toggleBlock.isPending;
   useLayoutEffect(() => {
     navigation.setOptions({
       title: other,
-      headerRight: otherId
+      headerRight: canBlock
         ? () => (
             <Pressable
-              onPress={openOptions}
+              onPress={confirmBlock}
+              disabled={blocking}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel={`Opções da conversa com ${other}`}
-              accessibilityHint="Denunciar ou bloquear"
-              style={styles.headerButton}>
-              <Ellipsis size={22} color={colors.text} />
+              accessibilityLabel={`Bloquear ${other}`}
+              accessibilityState={{ disabled: blocking, busy: blocking }}
+              style={({ pressed }) => [styles.headerButton, { opacity: pressed || blocking ? 0.5 : 1 }]}>
+              <Ban size={18} color={colors.red} />
+              <AppText variant="bodyStrong" color="red">
+                Bloquear
+              </AppText>
             </Pressable>
           )
         : undefined,
     });
-  }, [navigation, other, otherId, openOptions, colors.text]);
+  }, [navigation, other, canBlock, blocking, confirmBlock, colors.red]);
 
   // Relógio só enquanto o "digitando…" está na tela.
   useEffect(() => {
@@ -397,13 +394,14 @@ const styles = StyleSheet.create({
   offline: { paddingHorizontal: space.lg, paddingVertical: space.xs },
   list: { padding: space.lg, gap: space.sm, flexGrow: 1 },
   older: { marginVertical: space.lg },
-  empty: { textAlign: 'center', marginTop: space.xl, transform: [{ scaleY: -1 }] },
+  // A lista invertida já desvira o ListEmptyComponent; outro transform aqui o deixaria espelhado.
+  empty: { textAlign: 'center', marginTop: space.xl },
   bubble: { maxWidth: '82%', paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.lg, gap: 2 },
   mine: { alignSelf: 'flex-end', borderBottomRightRadius: radius.sm / 2 },
   theirs: { alignSelf: 'flex-start', borderBottomLeftRadius: radius.sm / 2 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end' },
   mineMeta: { opacity: 0.85 },
-  headerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  headerButton: { minHeight: 44, minWidth: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   blocked: { gap: space.sm, padding: space.lg, borderTopWidth: StyleSheet.hairlineWidth },
   closed: { flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.lg, borderTopWidth: StyleSheet.hairlineWidth },
   composer: { paddingHorizontal: space.md, paddingTop: space.sm, borderTopWidth: StyleSheet.hairlineWidth, gap: space.sm },

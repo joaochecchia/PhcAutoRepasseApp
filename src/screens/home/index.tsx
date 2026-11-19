@@ -26,6 +26,7 @@ import { useIntroProgress } from '@/hooks/use-intro';
 import { useTheme } from '@/hooks/use-theme';
 import { formatCount } from '@/utils/format';
 import { openSearch } from '@/utils/navigation';
+import { leadsToPlans } from '@/utils/site-link';
 import { radius, space } from '@/theme';
 
 export function Home() {
@@ -39,7 +40,9 @@ export function Home() {
   const unread = useChatUnread();
   // Banners cadastrados no painel; sem eles (ou com falha), os locais seguram o espaço.
   const banners = useQuery({ queryKey: ['home-banners'], queryFn: ({ signal }) => fetchHomeBanners(signal) });
-  const serverBanners = (banners.data ?? []).filter((banner) => banner.exibirEm !== 'COMPUTADOR').map(toBanner);
+  const serverBanners = (banners.data ?? [])
+    .filter((banner) => banner.exibirEm !== 'COMPUTADOR' && !leadsToPlans(banner.link))
+    .map(toBanner);
   const heroItems = serverBanners.length ? serverBanners : fallbackBanners;
   const condition = showcase && showcase !== SOLD_TAB ? showcase : null;
   const byCondition = useQuery({

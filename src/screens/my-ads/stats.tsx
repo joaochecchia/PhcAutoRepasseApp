@@ -65,8 +65,7 @@ export function StatsScreen() {
           <BarChart3 size={28} color={colors.muted} />
           <AppText variant="heading">Estatísticas não incluídas no seu plano</AppText>
           <AppText color="muted">
-            Visualizações por dia, quem favoritou e quem chamou no WhatsApp aparecem aqui quando o plano da conta inclui
-            estatísticas.
+            O seu plano atual não inclui as visualizações por dia, quem favoritou e quem chamou no WhatsApp.
           </AppText>
           <Button label="Ver meu plano" variant="secondary" onPress={() => router.push('/planos')} />
         </View>

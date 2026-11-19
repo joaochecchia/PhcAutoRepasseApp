@@ -135,7 +135,8 @@ function FirstRunInvite() {
       if (status.permission === 'granted' || !status.canAsk) return;
       showDialog({
         title: 'Ative as notificações',
-        message: 'Avisamos quando alguém responder suas mensagens e quando chegar um veículo da sua fila de espera.',
+        message:
+          'Avisamos quando um comprador ou vendedor responder suas mensagens e quando for anunciado um veículo da sua fila de espera. Não enviamos propaganda. Você escolhe os avisos em Menu › Notificações.',
         actions: [
           { label: 'Agora não', kind: 'cancel' },
           { label: 'Ativar', onPress: () => mutate() },

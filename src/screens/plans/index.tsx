@@ -299,15 +299,7 @@ function Benefits({ current }: { current: SubscriptionSummary }) {
       {lines.map((line) => (
         <View key={line.text} style={styles.inline}>
           <Check size={16} color={colors.deal} />
-          <AppText style={styles.flex}>
-            {line.text}
-            {line.soon ? (
-              <AppText variant="caption" color="muted">
-                {' '}
-                · em breve
-              </AppText>
-            ) : null}
-          </AppText>
+          <AppText style={styles.flex}>{line.text}</AppText>
         </View>
       ))}
     </View>

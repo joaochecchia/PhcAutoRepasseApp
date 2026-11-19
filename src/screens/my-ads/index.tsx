@@ -268,7 +268,7 @@ export function MyAdsScreen() {
       {quota.data && !quota.data.podePublicar ? (
         <Notice
           title="Todas as vagas estão em uso"
-          message="Retire um anúncio da vitrine ou mude de plano para publicar outro."
+          message="Retire um anúncio da vitrine para publicar outro."
         />
       ) : null}
       <Button label="Anunciar veículo" onPress={() => router.push('/anunciar')} />

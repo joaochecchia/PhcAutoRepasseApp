@@ -47,3 +47,18 @@ export async function signInWithApple(): Promise<AppleOutcome> {
   const outcome = await authApi.appleSignIn({ identityToken: credential.identityToken, nonce, nome, desafio: challenge });
   return outcome.kind === 'new-account' ? { kind: 'new-account', ticket: outcome.ticket, verifier } : outcome;
 }
+
+/**
+ * Confirmação da Apple antes de excluir a conta (App Store 5.1.1(v)): o código de autorização vai ao backend, que o
+ * troca por tokens e revoga o acesso do PHC Auto na Apple depois da exclusão. Nulo se a pessoa cancelar.
+ */
+export async function appleDeletionCode(): Promise<string | null> {
+  try {
+    const credential = await AppleAuthentication.signInAsync({ requestedScopes: [] });
+    if (!credential.authorizationCode) throw new Error('A Apple não devolveu a confirmação. Tente de novo.');
+    return credential.authorizationCode;
+  } catch (error) {
+    if ((error as { code?: string }).code === 'ERR_REQUEST_CANCELED') return null;
+    throw error instanceof Error && error.message.startsWith('A Apple') ? error : new Error('Não foi possível confirmar com a Apple. Tente de novo.');
+  }
+}

@@ -140,10 +140,11 @@ export const accountApi = {
   },
 
   /** Exclui a própria conta; quem tem senha local confirma com ela. O backend encerra a sessão. */
-  deleteAccount: (usuarioId: string, senha?: string) =>
+  /** appleCodigo: autorização nova do "Entrar com Apple"; o backend a usa para revogar o acesso do app na Apple. */
+  deleteAccount: (usuarioId: string, senha?: string, appleCodigo?: string) =>
     request<void>(`/usuarios/${encodeURIComponent(usuarioId)}/exclusao`, {
       method: 'POST',
-      body: { senha: senha || undefined },
+      body: { senha: senha || undefined, appleCodigo },
       auth: true,
       timeoutMs: 30_000,
     }),

@@ -140,6 +140,8 @@ export type UserProfile = {
   email: string;
   telefone: string;
   possuiSenhaLocal: boolean;
+  /** "Entrar com Apple" ligado: no iPhone, a exclusão da conta pede a confirmação da Apple (para revogar o acesso). */
+  contaApple?: boolean;
   razaoSocial?: string | null;
   cpf?: string | null;
   dataNascimento?: string | null;

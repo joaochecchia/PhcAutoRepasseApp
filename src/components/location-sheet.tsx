@@ -99,7 +99,7 @@ export function LocationSheet({ visible, current, signedIn, onApply, onClose }: 
           <Option
             icon={LocateFixed}
             label="Perto de mim"
-            hint="Usa a localização aproximada deste aparelho"
+            hint="Pede a localização aproximada do aparelho para buscar na sua região"
             selected={current?.modo === 'DISPOSITIVO'}
             busy={locating}
             onPress={nearMe}

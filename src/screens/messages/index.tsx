@@ -81,7 +81,7 @@ export function MessagesScreen() {
       onRefresh={() => query.refetch()}
       ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.border }]} />}
       ListHeaderComponent={
-        <PushPrompt message="Saiba na hora quando alguém responder suas conversas." style={styles.prompt} />
+        <PushPrompt message="Saiba na hora quando um comprador ou vendedor responder suas conversas." style={styles.prompt} />
       }
       ListEmptyComponent={
         query.isPending ? (

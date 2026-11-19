@@ -24,8 +24,7 @@ export function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleDateString('pt-BR') : '';
 }
 
-/** soon: recurso contratado que ainda não existe; é liberado sem custo extra quando entrar no ar. */
-export type BenefitLine = { text: string; included: boolean; soon?: boolean };
+export type BenefitLine = { text: string; included: boolean };
 
 /** Benefícios na ordem do material comercial; negativos só aparecem no plano gratuito. */
 export function benefitLines(b: PlanBenefits, gratuito: boolean): BenefitLine[] {
@@ -53,8 +52,8 @@ export function benefitLines(b: PlanBenefits, gratuito: boolean): BenefitLine[] 
   if (b.paginaLoja) lines.push({ text: 'Página da loja no site', included: true });
   if (b.estatisticasVisualizacao)
     lines.push({ text: 'Estatísticas: visualizações, favoritos e cliques no WhatsApp', included: true });
-  if (b.relatoriosDesempenho) lines.push({ text: 'Relatórios de desempenho dos anúncios', included: true, soon: true });
-  if (b.apiIntegracao) lines.push({ text: 'API para integrar seu sistema', included: true, soon: true });
+  // Relatórios de desempenho e API de integração ainda não existem: ficam fora do app até entrarem no ar, porque as
+  // lojas reprovam recurso anunciado que não funciona (App Store 2.1/2.2).
   if (b.videoLaudo) lines.push({ text: 'Vídeo de até 30 s e laudo cautelar no anúncio', included: true });
   if (b.promocoes) lines.push({ text: 'Promoções com selo nos anúncios: parcelamento, IPVA pago, desconto', included: true });
   else if (gratuito) lines.push({ text: 'Sem promoções nos anúncios', included: false });

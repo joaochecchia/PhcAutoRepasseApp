@@ -34,7 +34,12 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -49,10 +54,23 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "O PHC Auto usa sua localização aproximada para mostrar veículos e lojas perto de você."
+          "locationWhenInUsePermission": "Quando você escolhe \"Perto de mim\" na busca de veículos ou de lojas, o PHC Auto usa a localização aproximada do aparelho para mostrar os anúncios e as lojas da sua região.",
+          "locationAlwaysAndWhenInUsePermission": "Quando você escolhe \"Perto de mim\" na busca de veículos ou de lojas, o PHC Auto usa a localização aproximada do aparelho para mostrar os anúncios e as lojas da sua região. O app não usa a localização em segundo plano: ela só é lida com o app aberto, quando você pede.",
+          "locationAlwaysPermission": "Quando você escolhe \"Perto de mim\" na busca de veículos ou de lojas, o PHC Auto usa a localização aproximada do aparelho para mostrar os anúncios e as lojas da sua região. O app não usa a localização em segundo plano: ela só é lida com o app aberto, quando você pede.",
+          "locationFullAccuracyPermission": false,
+          "motionUsagePermission": false,
+          "isIosReducedAccuracyByDefault": true
         }
       ],
       "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Você escolhe na galeria as fotos e o vídeo do veículo que vai anunciar e a foto do seu perfil. O PHC Auto só envia os arquivos que você selecionar.",
+          "cameraPermission": "A câmera serve para você fotografar o veículo que vai anunciar e tirar a foto do seu perfil. A foto só é enviada quando você confirma.",
+          "microphonePermission": false
+        }
+      ],
       [
         "expo-notifications",
         {

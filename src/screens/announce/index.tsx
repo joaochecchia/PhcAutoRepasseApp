@@ -1351,7 +1351,7 @@ export function Announce() {
                   : null}
               </>
             ) : rules.data ? (
-              <Notice message="Vídeo e laudo ficam disponíveis nos planos que incluem mídia adicional." />
+              <Notice message="O seu plano atual não inclui vídeo e laudo." />
             ) : null}
             {asLot ? (
               <View style={styles.section}>

@@ -88,7 +88,7 @@ export function NotificationSettingsScreen() {
       style={{ backgroundColor: colors.bg }}
       contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xxl }]}>
       <AppText color="muted">
-        Os avisos também ficam em Avisos, no Menu. Aqui você escolhe quais chegam como notificação neste aparelho.
+        Aqui você escolhe quais avisos chegam como notificação neste aparelho. Eles também ficam em Avisos, no Menu. Não enviamos propaganda por notificação.
       </AppText>
 
       {status.isPending ? (
@@ -109,7 +109,7 @@ export function NotificationSettingsScreen() {
           <AppText variant="heading">Notificações desligadas</AppText>
           <AppText color="muted">
             {data.canAsk
-              ? 'Ative para saber na hora quando responderem suas mensagens ou chegar um veículo da sua fila de espera.'
+              ? 'Ative para saber na hora quando um comprador ou vendedor responder suas mensagens ou for anunciado um veículo da sua fila de espera.'
               : 'Você recusou as notificações. Para receber, ative nos ajustes do aparelho.'}
           </AppText>
           {data.canAsk ? (

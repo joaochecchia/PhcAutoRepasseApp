@@ -101,8 +101,8 @@ export function PromotionsPanel({ header }: { header: ReactNode }) {
           title="Promoções não incluídas no seu plano"
           message={
             data.promocoes.length
-              ? 'Suas promoções estão guardadas, mas não aparecem para os compradores enquanto o plano não incluir promoções.'
-              : 'Promoções com etiqueta nos anúncios ficam disponíveis quando o plano da conta inclui promoções.'
+              ? 'Suas promoções estão guardadas, mas não aparecem para os compradores porque o seu plano atual não inclui promoções.'
+              : 'O seu plano atual não inclui promoções com etiqueta nos anúncios.'
           }
           actionLabel="Ver meu plano"
           onAction={() => router.push('/planos')}

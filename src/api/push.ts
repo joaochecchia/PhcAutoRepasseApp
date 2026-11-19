@@ -15,8 +15,8 @@ export type PushKind = 'CHAT' | 'FILA_ESPERA' | 'SISTEMA';
 export type PushPrefs = Record<PushKind, boolean>;
 
 export const pushKinds: { kind: PushKind; label: string; hint: string; channel: string; staffOnly?: boolean }[] = [
-  { kind: 'CHAT', label: 'Mensagens', hint: 'Quando alguém responder numa conversa.', channel: 'mensagens' },
-  { kind: 'FILA_ESPERA', label: 'Fila de espera', hint: 'Quando chegar um veículo do seu pedido.', channel: 'fila-espera' },
+  { kind: 'CHAT', label: 'Mensagens', hint: 'Quando um comprador ou vendedor mandar mensagem numa conversa sua sobre um anúncio.', channel: 'mensagens' },
+  { kind: 'FILA_ESPERA', label: 'Fila de espera', hint: 'Quando for anunciado um veículo que combina com um pedido seu na fila de espera.', channel: 'fila-espera' },
   {
     kind: 'SISTEMA',
     label: 'Alertas do sistema',
@@ -99,7 +99,8 @@ export async function ensurePushChannels(staff = false) {
       }),
     ),
     Notifications.setNotificationChannelAsync('avisos', {
-      name: 'Outros avisos',
+      name: 'Outros avisos da conta',
+      description: 'Avisos da sua conta que não são de mensagens nem da fila de espera. Nunca usado para propaganda.',
       // eslint-disable-next-line import/namespace
       importance: Notifications.AndroidImportance.DEFAULT,
     }),

@@ -148,7 +148,7 @@ export function EditMedia({ anuncioId }: { anuncioId: string }) {
     );
   const current = media.data;
   if (!rules.data.liberado && !current.video && !current.laudo)
-    return <Notice message="Vídeo e laudo ficam disponíveis nos planos que incluem mídia adicional." />;
+    return <Notice message="O seu plano atual não inclui vídeo e laudo." />;
 
   return (
     <View style={styles.root}>

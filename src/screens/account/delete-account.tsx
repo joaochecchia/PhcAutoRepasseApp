@@ -6,12 +6,14 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 're
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { accountApi } from '@/api/account';
+import { appleDeletionCode } from '@/api/apple';
 import { sessionStore } from '@/api/session-store';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { showDialog } from '@/components/dialog';
 import { Notice } from '@/components/notice';
 import { TextField } from '@/components/text-field';
+import { useAccount } from '@/hooks/use-account';
 import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
@@ -26,12 +28,23 @@ export function DeleteAccount({ hasPassword }: { hasPassword: boolean }) {
   const queryClient = useQueryClient();
   const [senha, setSenha] = useState('');
   const [typed, setTyped] = useState('');
-  const ready = typed.trim().toUpperCase() === CONFIRMATION && (!hasPassword || senha.length > 0);
+  const profile = useAccount();
+  // Conta com "Entrar com Apple": no iPhone, a Apple confirma antes, para o backend revogar o acesso do app.
+  const ios = Platform.OS === 'ios';
+  const needsApple = ios && profile.data?.contaApple === true;
+  const ready =
+    typed.trim().toUpperCase() === CONFIRMATION && (!hasPassword || senha.length > 0) && !(ios && profile.isPending);
 
   const remove = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (session.status !== 'authenticated') throw new Error('Entre na sua conta para continuar.');
-      return accountApi.deleteAccount(session.user.usuarioId, hasPassword ? senha : undefined);
+      let appleCodigo: string | undefined;
+      if (needsApple) {
+        const code = await appleDeletionCode();
+        if (!code) throw new Error('Confirme com a Apple para excluir. Sua conta não foi excluída.');
+        appleCodigo = code;
+      }
+      return accountApi.deleteAccount(session.user.usuarioId, hasPassword ? senha : undefined, appleCodigo);
     },
     onSuccess: async () => {
       // O servidor já encerrou a sessão; aqui só limpa o aparelho.
@@ -64,6 +77,12 @@ export function DeleteAccount({ hasPassword }: { hasPassword: boolean }) {
           note="Depois desse prazo, também são apagados."
         />
         <Notice tone="info" message="Um plano pago em vigor é encerrado na hora, sem reembolso do período restante." />
+        {needsApple ? (
+          <Notice
+            tone="info"
+            message="Sua conta usa Entrar com Apple. Ao excluir, a Apple pede sua confirmação para encerrar o acesso do PHC Auto."
+          />
+        ) : null}
         {hasPassword ? (
           <TextField
             label="Senha atual"
