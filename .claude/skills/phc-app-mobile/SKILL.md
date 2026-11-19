@@ -48,3 +48,8 @@ npx expo start
 ```
 
 Abra a tela alterada no aparelho ou emulador, em tema claro e escuro, e passe pelos estados de carregando, vazio e erro. Animação só conta como verificada num aparelho real. Relate o que foi e o que não foi verificado, e remova imports sem uso e logs de depuração.
+
+
+## Referência de projeto de viatura GATE
+
+Para tarefas desta adaptação, consulte `docs/gate/modificacoes-van-gate.md`. O documento organiza requisitos dos termos de referência, dimensões do folheto e pontos pendentes de validação. Trate imagens geradas como conceito visual; não as apresente como desenho cotado, CAD, projeto executivo ou autorização para fabricação. Preserve as divergências entre documentos, em especial cor e PBT, e não declare compatibilidade do chassi sem confirmação técnica.

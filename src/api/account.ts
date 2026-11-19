@@ -5,7 +5,7 @@ import { digitsToIsoDate, isoDateToDigits, onlyDigits } from '@/utils/masks';
 
 import type { UploadFile } from './announce';
 import { getJson, request, upload } from './client';
-import type { Address, UserProfile } from './contracts';
+import type { Address, AppleRevocation, UserProfile } from './contracts';
 
 /** Formulário de conta como no site: chaves planas, endereço em "endereco.campo". */
 export type AccountDraft = Record<string, string>;
@@ -139,10 +139,12 @@ export const accountApi = {
     return file.uri;
   },
 
-  /** Exclui a própria conta; quem tem senha local confirma com ela. O backend encerra a sessão. */
-  /** appleCodigo: autorização nova do "Entrar com Apple"; o backend a usa para revogar o acesso do app na Apple. */
+  /**
+   * Exclui a própria conta; quem tem senha local confirma com ela. O backend encerra a sessão e diz o que aconteceu
+   * com o acesso na Apple. appleCodigo: confirmação nova do "Entrar com Apple" (conta antiga, sem token guardado).
+   */
   deleteAccount: (usuarioId: string, senha?: string, appleCodigo?: string) =>
-    request<void>(`/usuarios/${encodeURIComponent(usuarioId)}/exclusao`, {
+    request<{ revogacaoApple?: AppleRevocation }>(`/usuarios/${encodeURIComponent(usuarioId)}/exclusao`, {
       method: 'POST',
       body: { senha: senha || undefined, appleCodigo },
       auth: true,

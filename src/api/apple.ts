@@ -44,7 +44,14 @@ export async function signInWithApple(): Promise<AppleOutcome> {
 
   const { verifier, challenge } = await createPkcePair();
   const nome = [credential.fullName?.givenName, credential.fullName?.familyName].filter(Boolean).join(' ');
-  const outcome = await authApi.appleSignIn({ identityToken: credential.identityToken, nonce, nome, desafio: challenge });
+  // O código de autorização vira, no servidor, o token que revoga o acesso quando a conta for excluída (Apple TN3194).
+  const outcome = await authApi.appleSignIn({
+    identityToken: credential.identityToken,
+    nonce,
+    nome,
+    desafio: challenge,
+    codigoAutorizacao: credential.authorizationCode ?? undefined,
+  });
   return outcome.kind === 'new-account' ? { kind: 'new-account', ticket: outcome.ticket, verifier } : outcome;
 }
 

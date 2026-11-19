@@ -1,178 +1,152 @@
 # Riscos de reprovação — App Store e Google Play
 
-Levantamento de 19/11/2026 (itens 1.1 a 1.5 resolvidos no mesmo dia) feito a partir do código (`app.json`, `eas.json`, `src/`) e de uma busca no backend em `../PhcAutoRepasse/backend`. Ainda não houve envio para revisão nem teste em build de loja.
+Situação em 19/11/2026, conferida no código do app (`app.json`, `src/`) e do site/backend (`../PhcAutoRepasse`).
+**O app ainda não foi enviado para revisão nem testado num build de loja.** Nada aqui garante aprovação: a decisão é
+do revisor de cada loja.
 
-Legenda:
-
-- **Bloqueia**: reprovação provável, ou o envio nem é aceito. Resolver antes de enviar.
-- **Risco**: depende do revisor. Vale reduzir.
-- **Envio**: não está no código, mas é preenchido no App Store Connect ou no Play Console e reprova se faltar.
-- ✅ já atendido (fica registrado para não se perder).
+Legenda: **Corrigido** (no código, com teste), **Falta configurar** (fora do código), **Decisão** (produto ou
+jurídico), **Risco** (depende do revisor), **Não verificado** (precisa de aparelho, build ou credencial).
 
 ---
 
-## 1. Bloqueiam
+## 1. Exclusão de conta e "Entrar com Apple" (Apple 5.1.1(v); Google Play: exclusão de conta)
 
-Os cinco itens abaixo foram resolvidos no código em 19/11/2026. O que ainda depende de você está em **Falta**.
+**Corrigido.**
 
-### 1.1 Exclusão de conta revoga o "Entrar com Apple" (Apple 5.1.1(v)) ✅
+- **Login no iPhone:** o app manda o código de autorização. O backend troca o código por refresh token e o guarda cifrado (AES-256-GCM), como pede a Apple (TN3194).
+- **Exclusão por qualquer caminho:** app, site ou painel do DONO. O token entra numa fila de revogação na mesma transação da exclusão; a revogação é tentada na hora e repetida com intervalo crescente por até 7 dias.
+- **Resposta da exclusão:** diz o que aconteceu (`REVOGADA`, `PENDENTE`, `SEM_TOKEN` ou `NAO_SE_APLICA`). App e site só falam em revogação quando a Apple confirmou.
+- **Conta antiga sem token:**
+  - No iPhone, a Apple confirma antes de excluir.
+  - Se a pessoa recusa, a Apple falha, ou a exclusão é pelo site ou pelo Android, a conta é excluída mesmo assim; a exclusão nunca fica bloqueada.
+  - A pessoa recebe o caminho oficial para remover o app na conta Apple (support.apple.com/pt-br/102571).
+- **Tela do app:** não libera a exclusão com o perfil carregando ou com erro. Mostra "Tentar novamente"; antes, uma falha do perfil permitia excluir sem revogar.
+- **Sem configuração:** sem as chaves da Apple e de cifra, o login com Apple do app publicado é recusado, para não criar conta que não possa ser revogada.
+- **Página pública de exclusão (Google Play):** `phcauto.com/excluir-conta`, sem precisar do app.
+- Arquivos:
+  - backend: `usuarios/.../security/AppleRevogacaoService.java`, `CifraTokensApple.java`, `RevogacaoAppleListener.java` e a migração `V92__tokens_apple.sql`;
+  - app: `src/screens/account/delete-account.tsx` e `deletion-flow.ts`;
+  - site: `AccountPrivacy.tsx`, `AccountDeletionPage.tsx` e `lib/accountSafety.ts`.
 
-- Backend: `AppleRevogacaoService`. Na exclusão, troca o código da Apple por tokens, confere que é a mesma conta Apple, exclui e revoga o refresh token. Nenhum token fica guardado. Se a Apple não responder, a conta não é excluída e a pessoa tenta de novo.
-- Perfil (`GET /usuarios/{id}`) passou a trazer `contaApple`.
-- App: no iPhone, numa conta com Apple, a exclusão pede uma nova confirmação da Apple (Face ID) e envia o código (`src/api/apple.ts`, `src/screens/account/delete-account.tsx`).
-- **Falta:** criar em developer.apple.com › Keys uma chave com "Sign in with Apple" e definir `APPLE_TEAM_ID`, `APPLE_KEY_ID` e `APPLE_PRIVATE_KEY` no `.env` de produção. Sem elas a exclusão funciona, mas não revoga, e o log avisa. Depois, teste a exclusão num build de desenvolvimento ou TestFlight (no Expo Go a troca do código falha).
-- Limite: uma conta com Apple excluída **pelo site** não é revogada, porque só o iPhone obtém o código. A revisão da Apple olha o app.
+**Falta configurar:**
 
-### 1.2 Textos de permissão em pt-BR (Apple 5.1.1) ✅
+- Criar a chave "Sign in with Apple" em developer.apple.com › Keys.
+- Definir no backend de produção:
+  - `APPLE_TEAM_ID`, `APPLE_KEY_ID` e `APPLE_PRIVATE_KEY` (o conteúdo do .p8);
+  - `APPLE_TOKENS_CHAVE`, gerada com `openssl rand -base64 32`.
+- Guardar a chave de cifra só no `.env` de produção e num cofre de senhas.
+- Para trocar a chave de cifra, mover a antiga para `APPLE_TOKENS_CHAVE_ANTERIOR`.
+- Informar `https://phcauto.com/excluir-conta` no Play Console.
 
-`expo-image-picker` está em `plugins` no `app.json`, com texto para fotos e câmera. O microfone foi desligado (`microphonePermission: false`), o que tira `NSMicrophoneUsageDescription` do iPhone e `RECORD_AUDIO` do Android. Conferido com `npx expo config --type introspect`. Só vale a partir do próximo build (no Expo Go os textos são os do Expo Go).
+**Não verificado:**
 
-Revisão de 19/11/2026: cada texto diz todos os usos, e os genéricos em inglês que os plugins punham sumiram.
+- Troca do código e revogação com a Apple de verdade: exige build de desenvolvimento ou TestFlight e a chave real; no Expo Go o código é de outro cliente.
+- Testado localmente, simulando a conta Apple direto no banco: exclusão `SEM_TOKEN`, `PENDENTE` com o token indo para a fila, e `NAO_SE_APLICA`.
 
-| Permissão (iOS) | Uso no app |
-|---|---|
-| Câmera | Fotografar o veículo do anúncio e a foto do perfil |
-| Fotos | Escolher fotos e vídeo do veículo e a foto do perfil (só o selecionado é enviado) |
-| Localização ao usar | "Perto de mim" na busca de veículos e de lojas, precisão reduzida por padrão |
-| Localização sempre | Não é pedida; o texto fica para evitar o aviso ITMS-90683 e diz que não há uso em segundo plano |
-| Movimento, Face ID, precisão total | Removidos (`false` nos plugins `expo-location` e `expo-secure-store`) |
+**Limites que continuam:**
 
-O texto em inglês de rede local do `expo-dev-client` é apagado sozinho no build de loja (fase de build do `expo-dev-launcher`).
+- Contas Apple criadas antes desta versão só ganham token no próximo login com Apple no iPhone.
+- Se forem excluídas pelo site ou pelo Android antes disso, não há como revogar pelo servidor: a pessoa recebe as instruções da Apple.
+- As notificações servidor a servidor da Apple (`consent-revoked`) não foram implementadas. São opcionais e serviriam para apagar o token quando a pessoa remove o app pela Apple.
 
-Notificações (sem texto de sistema no iOS; o app explica antes de pedir): mensagens de comprador ou vendedor, veículo novo da fila de espera e, só para a administração, alertas do sistema. O convite, a tela Notificações e o canal "Outros avisos da conta" do Android dizem que não há propaganda por notificação.
+## 2. Bloqueio de anunciante e moderação (Apple 1.2; Google Play: conteúdo gerado por usuários)
 
-### 1.3 Conta de teste para o revisor (Apple 2.1 / Play "Acesso ao app") ✅ no código
+**Corrigido.**
 
-- Backend: `MFA_ISENTOS` lista e-mails que entram sem o código por e-mail. Só vale para contas CLIENTE; ADMIN e DONO sempre pedem o código.
-- **Falta:**
-  1. criar em produção uma conta CLIENTE só para a revisão, com senha forte;
-  2. publicar nela dois ou três anúncios e abrir uma conversa com outra conta;
-  3. pôr o e-mail em `MFA_ISENTOS` e reiniciar o backend;
-  4. informar e-mail e senha nas notas ao revisor (App Store Connect) e em "Acesso ao app" (Play Console);
-  5. esvaziar `MFA_ISENTOS` quando não houver app em revisão.
-- O revisor provavelmente vai testar a exclusão de conta. Deixe uma segunda conta pronta ou recrie a conta depois de cada envio.
+- **Bloqueio pelo anúncio:**
+  - O controle fica sempre visível: "Conferindo bloqueio…" enquanto carrega e "Tentar novamente" se a lista falha.
+  - Com o estado desconhecido, nunca bloqueia nem desbloqueia. Vale no app (`src/screens/vehicle/block-seller.tsx`) e no site (`BlockSellerButton.tsx`).
+  - O backend aceita o bloqueio sem conversa anterior; bloqueado, nenhum dos dois abre conversa nem manda mensagem.
+- **Filtro de texto** (`TextoOfensivo`, no backend). Recusa palavrão, insulto e ofensa discriminatória em:
+  - anúncio e lote (criação e edição, inclusive lote montado só com anúncios já existentes);
+  - promoções e descrição de foto;
+  - nome e razão social da conta;
+  - mensagens do chat (pela API e pelo WebSocket).
+- **Chat no site:** mensagem recusada pelo filtro volta ao campo para editar, em vez de "Tentar de novo".
+- **Testado localmente:** bloqueio sem conversa, lista, desbloqueio, 404 para conta inexistente, e nome ofensivo recusado no cadastro e na edição.
 
-### 1.4 Convites para trocar de plano ✅
+**Não resolve tudo:**
 
-- **Textos do app**, iguais no Android e no iPhone. "Mude de plano", "nos planos que incluem…" e "quando o plano da conta inclui…" viraram frases neutras como "O seu plano atual não inclui vídeo e laudo." Telas: Meus anúncios, mídia do anúncio, lote, anunciar, promoções e estatísticas.
-- **Erros do backend.** As mensagens de limite ("Assine um plano…") agora têm o convite sempre como última frase. Com o cabeçalho `X-PHC-Cliente: app`, o backend (`ConvitePlanoAppAdvice`) tira essa frase; o site continua recebendo a mensagem inteira. Também saiu "fazem parte dos planos pagos" das mensagens de mídia e de promoções.
-- **Banners.** O app não mostra banner com link para `/planos` (`leadsToPlans` em `src/utils/site-link.ts`).
-- **Avisos e push.** O backend só gera avisos de chat, fila de espera e alertas de sistema (só administração). Nenhum vende plano.
-- **Falta (regra editorial):** não cadastrar banner sem link com arte de venda de plano ("Assine o Pro") para aparecer no celular. Esse banner o app não consegue identificar. Use `exibirEm: COMPUTADOR` nesses banners.
+- **Fotos e vídeos:** não têm filtro automático. Dependem de denúncia e da equipe. Não foi adicionado serviço pago de moderação de imagem.
+- **Filtro de palavras:** pega os casos óbvios e pode ser contornado. Não substitui a moderação humana.
 
-### 1.5 Recursos "em breve" ✅
+**Decisão (operação):**
 
-As linhas "Relatórios de desempenho" e "API para integrar seu sistema" saíram da tela Meu plano (`src/data/plans.ts`). Voltam quando os recursos existirem.
+- **Quem age sobre o conteúdo:** só o DONO remove anúncio e desativa conta. O ADMIN só marca a denúncia como resolvida ou descartada. Defina quem modera e se o ADMIN deve poder retirar anúncio e suspender conta.
+- **Prazo de análise:** a Apple espera ação rápida sobre denúncias (é comum citar 24 h). Defina o prazo, escreva-o nos Termos e explique a rotina nas notas ao revisor.
 
----
+**Risco:** a Apple pode considerar insuficiente a moderação só por denúncia para fotos. Nas notas ao revisor, descreva:
+- o filtro de texto;
+- a denúncia de anúncio e de mensagem;
+- o bloqueio;
+- a fila no painel;
+- o prazo de resposta.
 
-## 2. Riscos
+## 3. Termos de Uso e Política de Privacidade
 
-### 2.1 Assinatura multiplataforma sem compra da Apple (Apple 3.1.3(b))
+**Situação real:**
 
-Já registrado no `AGENTS.md`. Um app só de consumo, sem nenhuma menção a compra, costuma passar como "multiplatform service", mas o revisor pode pedir a compra da Apple. Para reduzir o risco, as notas ao revisor devem dizer: "Os planos são contratados no site por empresas e revendedores; o app não vende nem anuncia planos, só mostra o plano da conta." Se exigirem, as saídas estão no `AGENTS.md`: StoreKit, ou o link externo do Brasil.
+- **Versão 1.1:** é a que está em vigor (`TERMOS_USO_VERSAO_ATUAL` e `POLITICA_PRIVACIDADE_VERSAO_ATUAL`) e a que o cadastro grava no aceite. É um PDF que é minuta jurídica, com anexo interno e referências que não batem com a operação.
+- **Histórico preservado:** o PDF não foi alterado, para preservar o histórico de aceites.
 
-### 2.2 Cadastro pede dados demais para quem só quer comprar (Apple 5.1.1(i)/(ii))
+**Corrigido:**
 
-Criar conta exige CPF, data de nascimento, telefone e endereço completo, inclusive para quem entra com Apple (`src/components/account-fields.tsx`). A justificativa é que a conta serve para comprar e anunciar veículos, o que é aceitável. Vale deixar isso claro nas notas ao revisor e conferir:
+- **Minuta 2.0:** Termos e Política **separados**, em HTML, descrevendo só o que o sistema faz (`../PhcAutoRepasse/frontend/src/legal/documents.ts`).
+  - Para revisão, abrir com `?versao=2.0`; a página avisa que não está em vigor e lista as pendências.
+  - Pendências e roteiro de aprovação: `../PhcAutoRepasse/backend/docs/lgpd/termos-e-politica-v2.md`.
+- **Rotas públicas:** `/termos-de-uso` e `/politica-de-privacidade` mostram a versão que o backend declara em vigor. Se apontarem para uma minuta, a página mostra o erro em vez de apresentá-la como aprovada.
+- **Links:** todos os links do app e do site (cadastro, rodapé, Privacidade) passaram a usar essas páginas.
+- **Lista de empresas e prazos** (`/compliance/privacidade`):
+  - Hostinger no Brasil;
+  - Expo, Google e Apple incluídos;
+  - Cielo também na compra de veículos;
+  - token da Apple e prazo real de 190 dias do registro de acesso.
 
-- navegar, buscar, ver anúncio e favoritar funcionam sem conta ✅ (pelo código, favoritos de visitante existem);
-- se a Apple contestar, peça CPF e endereço só ao anunciar ou comprar, e não ao criar conta para conversar.
+**Decisão (jurídico e produto), antes de publicar a 2.0:**
 
-Depois do "Entrar com Apple", o cadastro não pede de novo o e-mail (`lockEmail`) ✅ e só pede o nome quando a Apple não o envia ✅.
+- CNPJ, CEP e encarregado de dados.
+- Bases legais.
+- Transferência internacional.
+- Novo aceite de quem já tem conta (não implementado).
+- Prazo das denúncias.
+- Devolução por boleto.
+- Regras da compra de veículo.
+- EULA da Apple.
 
-### 2.3 iPad habilitado sem layout próprio (Apple 2.4.1 / 2.1)
+**Risco (Google):** enquanto a 1.1 estiver em vigor, `/politica-de-privacidade` leva a um PDF. A Google pede a política numa página web, não em PDF; a exigência só fica atendida quando a 2.0 for aprovada e publicada. Não publique a minuta como aprovada.
 
-`app.json` tem `"supportsTablet": true`. A Apple testa no iPad e reprova tela cortada, esticada ou quebrada. Também passam a ser exigidas capturas de tela de iPad. Se o app não foi testado no iPad, use `false`: ele ainda roda no iPad em modo iPhone.
+## 4. Planos (Apple 3.1.1 / 3.1.3(b))
 
-### 2.4 Localização precisa no Android sem uso (Play: permissões)
+**Risco assumido** por decisão de 18/11/2026: o app só consome planos contratados no site, sem preço, sem compra e sem link de compra.
+- Pelas regras 3.1.3(b) e 3.1.3(g), recursos digitais usados no app (incluindo destaque de anúncio) deveriam também estar à venda pela compra da Apple.
+- O revisor pode reprovar.
+- Nada disso foi alterado nesta etapa.
 
-`app.json` declara `ACCESS_FINE_LOCATION` e `ACCESS_COARSE_LOCATION`, mas `src/utils/location.ts` usa precisão `Balanced` e o texto fala em "localização aproximada". A Play Store pede o mínimo necessário, e a declaração de Segurança dos dados terá de justificar a localização precisa. Deixe só `ACCESS_COARSE_LOCATION`.
+## 5. Outros itens abertos no app
 
-### 2.5 Conteúdo gerado por usuários (Apple 1.2 / Play: UGC)
+| Item | Situação |
+| --- | --- |
+| `ios.infoPlist.ITSAppUsesNonExemptEncryption` | Não definido no `app.json` (cada build pede a resposta sobre criptografia) |
+| `supportsTablet: true` | Continua; o app não foi testado no iPad |
+| `ACCESS_FINE_LOCATION` no Android | Continua declarado, embora a busca use precisão reduzida |
+| Linha "Servidor" no Menu | Continua visível em produção |
+| Diálogo de saída cita só Google | Continua (no iPhone, falta citar Apple) |
+| Textos de permissão (câmera, fotos, localização) | Corrigidos em 19/11/2026; valem a partir do próximo build |
+| Conta de demonstração (`MFA_ISENTOS`) | Implementado; falta criar a conta em produção e informar às lojas |
 
-Já existe:
+## 6. Itens de envio
 
-- ✅ denunciar anúncio (`src/screens/vehicle/index.tsx`) e mensagem (`src/screens/messages/conversation.tsx`);
-- ✅ bloquear e desbloquear usuário no chat;
-- ✅ fila de denúncias no painel admin (`src/screens/admin/reports.tsx`);
-- ✅ aceite dos Termos no cadastro.
-
-Falta conferir:
-
-- se os Termos (PDF `termos-uso-politica-privacidade-v1.1.pdf`) dizem com clareza que não se tolera conteúdo abusivo e que há punição (a Apple pede isso no aceite do EULA);
-- se as denúncias são tratadas em até 24 h e o autor removido (é o que a Apple espera; explique nas notas ao revisor);
-- se fotos de anúncio passam por alguma moderação antes de ir ao ar. Se não passam, a denúncia e a remoção rápida têm de bastar.
-
-### 2.6 Pedido de notificação push (Apple 4.5.4)
-
-O pedido de permissão parte de um botão (`src/components/push-prompt.tsx`) ✅, e não da abertura do app. Push de marketing ou promoção exige consentimento explícito e uma forma de desligar no app. Se o backend mandar push promocional, confira se existe essa opção separada em Notificações.
-
-### 2.7 Pagamento com cartão dentro do app
-
-Compra de **veículo** pela Cielo (cartão, Pix, boleto) é bem físico, permitido nas duas lojas ✅. Pontos de atenção:
-
-- o revisor pode achar que é compra de conteúdo digital. Nas notas, explique que é o pagamento do veículo ou do sinal ao vendedor;
-- o 3DS roda numa WebView (`src/hooks/use-card-payment.tsx`). Teste num build de loja; erro ou tela em branco ali vira reprovação por bug (2.1).
-
-### 2.8 Linha "Servidor" no Menu
-
-`src/screens/menu/index.tsx` mostra a URL da API e "No ar / Fora do ar". Em produção isso parece tela de depuração e pode levantar dúvida (Apple 2.3 / 4.0). Considere mostrá-la só em build de desenvolvimento ou para administradores.
-
-### 2.9 Texto que fala do Expo Go
-
-`src/screens/notification-settings/index.tsx:22` menciona "Expo Go" e "build de desenvolvimento". Num build de loja esse estado não deveria aparecer. Confira se ele fica atrás de `isRunningInExpoGo()`, para nunca mostrar ao revisor referências a ferramentas de desenvolvimento (Apple 2.3.10).
-
-### 2.10 Diálogo de saída cita só Google
-
-`confirmLogout` (`src/screens/menu/index.tsx`) diz "entrar com e-mail e senha ou Google". No iPhone, inclua Apple. Não reprova sozinho, mas é sinal de inconsistência.
-
-### 2.11 Nome "FIPE" e dados de terceiros (Apple 5.2 / Play: propriedade intelectual)
-
-A tela "Tabela FIPE" usa o nome e os dados da Fundação FIPE. Os dados são públicos e o uso é comum, então o risco é baixo. Não use o logotipo da FIPE e deixe claro que o preço é de referência.
-
----
-
-## 3. Itens de envio
-
-### Apple (App Store Connect)
-
-- **Rótulos de privacidade** (App Privacy): nome, e-mail, telefone, CPF, endereço, localização aproximada, fotos, mensagens do chat, histórico de compras, identificador do aparelho (token de push). Marque "não usado para rastreamento" se for verdade.
-- **Política de privacidade**: URL obrigatória. Hoje é um PDF (`https://phcauto.com/documentos/termos-uso-politica-privacidade-v1.1.pdf`). Funciona, mas uma página HTML é mais segura.
-- **Criptografia**: adicione `"ios": { "infoPlist": { "ITSAppUsesNonExemptEncryption": false } }` (só HTTPS padrão). Sem isso, cada build fica parado esperando resposta.
-- **Privacy manifest**: o Expo SDK 58 gera o dos módulos dele. Se o envio avisar sobre "required reason API", complete em `ios.privacyManifests` no `app.json`.
-- **Notas ao revisor**: conta de demonstração (1.3), explicação dos planos (2.1), do pagamento de veículo (2.7) e da moderação (2.5).
-- **Capturas**: iPhone 6,9" e, se `supportsTablet` ficar `true`, iPad 13".
-- **Classificação etária**: o chat entre usuários entra como "conteúdo gerado por usuários / comunicação irrestrita".
-- **Capacidades**: "Sign in with Apple" e "Push Notifications" ativadas no identificador `com.phcauto.app` (o EAS faz isso se as credenciais forem dele).
-
-### Google (Play Console)
-
-- **Segurança dos dados**: os mesmos dados da Apple, com finalidade e se são compartilhados (Cielo para pagamento, Google para login, Firebase para push).
-- **Exclusão de conta**: a Play exige, além da opção no app ✅, **um link na web** onde a pessoa pede a exclusão sem instalar o app. No site, a exclusão está dentro do perfil (`ProfilePage.tsx`). Crie uma página pública que explique o passo a passo (ou tenha um formulário) e informe a URL no Console.
-- **Acesso ao app**: credenciais da conta de demonstração (1.3).
-- **Declaração de permissões**: localização (2.4) e, se pedido, a de fotos e vídeos. A Play restringe `READ_MEDIA_IMAGES`/`READ_MEDIA_VIDEO` a apps cuja função central é mídia; confira se o build final usa o seletor de fotos do sistema e não declara essas permissões (`npx expo prebuild` e veja o `AndroidManifest.xml`).
-- **Teste fechado**: conta pessoal de desenvolvedor criada depois de nov/2023 precisa de 12 testadores por 14 dias antes de publicar em produção. Conta de organização (CNPJ) não tem essa exigência.
-- **Classificação de conteúdo** (questionário IARC): marque interação entre usuários e compras.
-- **Público-alvo**: maiores de 18 (há compra e venda de veículos e CPF).
-
----
-
-## 4. Resumo do que fazer, por ordem
-
-1. Chave da Apple no `.env` de produção (1.1) e conta de revisão com `MFA_ISENTOS` (1.3).
-2. `app.json`: `ITSAppUsesNonExemptEncryption`, remover `ACCESS_FINE_LOCATION` e decidir `supportsTablet` (2.3, 2.4, 3).
-3. Página pública de exclusão de conta no site (Play).
-4. Esconder a linha "Servidor" e textos de Expo Go em build de loja (2.8, 2.9).
-5. Preencher privacidade, notas ao revisor e capturas (3).
-
----
-
-## 5. Correções de 19/11/2026 (revisão com a lista do Codex)
-
-- **Política de privacidade em HTML**: `phcauto.com/politica-de-privacidade` (site, `PrivacyPolicyPage.tsx`). Descreve só o que roda hoje; empresas, prazos e cookies vêm de `/compliance/privacidade`. É essa a URL para a Apple e para a Google. O app (Privacidade e cadastro) e o site apontam para ela.
-- **Lista de empresas**: Hostinger no Brasil; entraram Expo (push), Google (login e FCM) e Apple (login e APNs); Cielo também na compra de veículos. Novos prazos: aparelhos de push, localização (não guardada) e denúncias e bloqueios.
-- **Exclusão de conta**: página pública `phcauto.com/excluir-conta` (URL para o Play Console), com passo a passo no app, no site e sem acesso, e o que fica guardado. As telas de exclusão do app e do site passaram a citar conversas (180 dias), logins e acessos (6 meses) e logs e cópias (14 dias).
-- **Apple**: o "Entrar com Apple" do app publicado é recusado enquanto `APPLE_TEAM_ID`, `APPLE_KEY_ID` e `APPLE_PRIVATE_KEY` não estiverem configurados (Expo Go segue funcionando). Limite que continua: conta Apple excluída pelo site ou pelo Android não é revogada, porque só o iPhone obtém o código; fechar isso exige guardar o refresh token da Apple criptografado.
-- **Moderação**: bloqueio do anunciante direto pelo anúncio, sem conversa anterior (app; backend aceita qualquer conta existente). Filtro preventivo de palavrões, insultos e ofensas discriminatórias (`TextoOfensivo`) no título e na descrição de anúncios e lotes, nas promoções e no chat. Fotos continuam só com denúncia e moderação.
-- **Ainda pendente**: o PDF `termos-uso-politica-privacidade-v1.1.pdf` (Termos e Política aceitos no cadastro) é uma minuta para revisão jurídica, com dados que não batem com a operação (Stripe, Mercado Pago, Supabase/AWS/Vercel, Google Analytics, biometria, "[Nome a definir]", anexo interno). Precisa de revisão do advogado e de nova versão.
+- **Apple:**
+  - rótulos de privacidade: nome, e-mail, telefone, CPF, endereço, localização aproximada, fotos, mensagens, compras, identificador do aparelho, token do login com Apple;
+  - URL da política;
+  - notas ao revisor: conta de demonstração, planos, pagamento de veículo, moderação e área administrativa restrita;
+  - capturas de tela;
+  - classificação etária.
+- **Google:**
+  - Segurança dos dados: os mesmos dados, com Cielo, Google, Apple e Expo como destinatários;
+  - URL da política (ver item 3);
+  - URL de exclusão `https://phcauto.com/excluir-conta`;
+  - acesso ao app com a conta de demonstração;
+  - declaração de permissões;
+  - público-alvo 18+;
+  - teste fechado, se a conta de desenvolvedor for pessoal.

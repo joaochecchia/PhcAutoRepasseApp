@@ -133,6 +133,12 @@ export type AdPhoto = {
   url: string;
 };
 
+/**
+ * Resultado da exclusão de conta para o "Entrar com Apple": REVOGADA (a Apple confirmou), PENDENTE (o servidor tenta
+ * de novo), SEM_TOKEN (sem como revogar: a pessoa remove o app na conta Apple) ou NAO_SE_APLICA.
+ */
+export type AppleRevocation = 'NAO_SE_APLICA' | 'REVOGADA' | 'PENDENTE' | 'SEM_TOKEN';
+
 export type UserProfile = {
   id: string;
   tipoPessoa: 'PF' | 'PJ';
@@ -140,8 +146,13 @@ export type UserProfile = {
   email: string;
   telefone: string;
   possuiSenhaLocal: boolean;
-  /** "Entrar com Apple" ligado: no iPhone, a exclusão da conta pede a confirmação da Apple (para revogar o acesso). */
+  /** "Entrar com Apple" ligado à conta. */
   contaApple?: boolean;
+  /**
+   * O servidor já guarda o token para revogar o acesso na Apple ao excluir a conta. Falso numa conta Apple antiga:
+   * no iPhone, a exclusão pede uma nova confirmação da Apple.
+   */
+  appleRevogavel?: boolean;
   razaoSocial?: string | null;
   cpf?: string | null;
   dataNascimento?: string | null;

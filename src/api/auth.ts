@@ -78,7 +78,7 @@ export const authApi = {
    * "Entrar com Apple" (iPhone): o backend confere o token da Apple. Conta ligada volta com a sessão; conta nova
    * volta com o ticket de cadastro, preso ao desafio PKCE.
    */
-  async appleSignIn(body: { identityToken: string; nonce: string; nome: string; desafio: string }) {
+  async appleSignIn(body: { identityToken: string; nonce: string; nome: string; desafio: string; codigoAutorizacao?: string }) {
     const response = await request<
       Omit<LoginResponse, 'status'> & { status: 'AUTENTICADO' | 'CADASTRO_NECESSARIO'; cadastroToken?: string }
     >('/autenticacao/social/apple', { method: 'POST', body });

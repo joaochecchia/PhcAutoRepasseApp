@@ -23,7 +23,7 @@ import { TextField } from '@/components/text-field';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
 
-const TERMS_URL = 'https://phcauto.com/documentos/termos-uso-politica-privacidade-v1.1.pdf';
+const TERMS_URL = 'https://phcauto.com/termos-de-uso';
 const PRIVACY_URL = 'https://phcauto.com/politica-de-privacidade';
 
 /**
@@ -223,7 +223,7 @@ export function Register() {
           <Pressable
             onPress={() => WebBrowser.openBrowserAsync(TERMS_URL)}
             accessibilityRole="link"
-            accessibilityHint="Abre o documento em PDF"
+            accessibilityHint="Abre os Termos de Uso no navegador"
             hitSlop={8}
             style={styles.termsLink}>
             <AppText variant="label" color="red">
