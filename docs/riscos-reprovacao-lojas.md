@@ -165,3 +165,14 @@ A tela "Tabela FIPE" usa o nome e os dados da Fundação FIPE. Os dados são pú
 3. Página pública de exclusão de conta no site (Play).
 4. Esconder a linha "Servidor" e textos de Expo Go em build de loja (2.8, 2.9).
 5. Preencher privacidade, notas ao revisor e capturas (3).
+
+---
+
+## 5. Correções de 19/11/2026 (revisão com a lista do Codex)
+
+- **Política de privacidade em HTML**: `phcauto.com/politica-de-privacidade` (site, `PrivacyPolicyPage.tsx`). Descreve só o que roda hoje; empresas, prazos e cookies vêm de `/compliance/privacidade`. É essa a URL para a Apple e para a Google. O app (Privacidade e cadastro) e o site apontam para ela.
+- **Lista de empresas**: Hostinger no Brasil; entraram Expo (push), Google (login e FCM) e Apple (login e APNs); Cielo também na compra de veículos. Novos prazos: aparelhos de push, localização (não guardada) e denúncias e bloqueios.
+- **Exclusão de conta**: página pública `phcauto.com/excluir-conta` (URL para o Play Console), com passo a passo no app, no site e sem acesso, e o que fica guardado. As telas de exclusão do app e do site passaram a citar conversas (180 dias), logins e acessos (6 meses) e logs e cópias (14 dias).
+- **Apple**: o "Entrar com Apple" do app publicado é recusado enquanto `APPLE_TEAM_ID`, `APPLE_KEY_ID` e `APPLE_PRIVATE_KEY` não estiverem configurados (Expo Go segue funcionando). Limite que continua: conta Apple excluída pelo site ou pelo Android não é revogada, porque só o iPhone obtém o código; fechar isso exige guardar o refresh token da Apple criptografado.
+- **Moderação**: bloqueio do anunciante direto pelo anúncio, sem conversa anterior (app; backend aceita qualquer conta existente). Filtro preventivo de palavrões, insultos e ofensas discriminatórias (`TextoOfensivo`) no título e na descrição de anúncios e lotes, nas promoções e no chat. Fotos continuam só com denúncia e moderação.
+- **Ainda pendente**: o PDF `termos-uso-politica-privacidade-v1.1.pdf` (Termos e Política aceitos no cadastro) é uma minuta para revisão jurídica, com dados que não batem com a operação (Stripe, Mercado Pago, Supabase/AWS/Vercel, Google Analytics, biometria, "[Nome a definir]", anexo interno). Precisa de revisão do advogado e de nova versão.

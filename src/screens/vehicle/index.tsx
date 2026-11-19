@@ -73,6 +73,7 @@ import { AdBoostPanel } from '@/screens/admin/ad-boost-panel';
 import { useTheme } from '@/hooks/use-theme';
 import { conditionLabels, formatCents, formatCount, formatKm, formatLocation, formatPrice, formatYears, humanize } from '@/utils/format';
 import { radius, space, touch } from '@/theme';
+import { BlockSellerLink } from './block-seller';
 import { PurchaseCard } from './purchase-card';
 
 /** Ficha técnica por tipo, como no site. Número de série e registro marítimo identificam o bem e ficam fora. */
@@ -336,6 +337,9 @@ export function VehicleDetail({ id }: { id: string }) {
                     </AppText>
                   </Pressable>
                 )}
+                {!ownAd && session.status === 'authenticated' ? (
+                  <BlockSellerLink sellerId={detail.anuncianteId} sellerName={seller.data?.nome ?? 'este anunciante'} />
+                ) : null}
               </>
             )}
           </View>

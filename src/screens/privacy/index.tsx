@@ -21,13 +21,14 @@ type PrivacyInfo = {
   cookies: { nome: string; finalidade: string; duracao: string }[];
 };
 
-const POLICY_URL = 'https://phcauto.com/documentos/termos-uso-politica-privacidade-v1.1.pdf';
+const POLICY_URL = 'https://phcauto.com/politica-de-privacidade';
+const DELETION_URL = 'https://phcauto.com/excluir-conta';
 
 const rights: [string, string][] = [
   ['Saber e acessar', 'Confirmar que tratamos seus dados e receber uma cópia completa, em Minha conta.'],
   ['Corrigir', 'Atualizar dados incompletos ou errados em Minha conta.'],
   ['Levar para outro serviço', 'A cópia dos seus dados vem em JSON, legível por outros sistemas.'],
-  ['Excluir', 'Apagar sua conta e todos os seus anúncios. Só o mínimo exigido por lei fica guardado, pelo prazo abaixo.'],
+  ['Excluir', 'Apagar sua conta e todos os seus anúncios em Minha conta. Só o mínimo exigido por lei fica guardado, pelo prazo abaixo.'],
   ['Saber com quem compartilhamos', 'A lista completa de empresas que recebem dados está nesta página.'],
   ['Revogar consentimento', 'Desligar o contato por WhatsApp ou telefone em cada anúncio, a qualquer momento.'],
   ['Reclamar à ANPD', 'Se não resolvermos, você pode peticionar à Autoridade Nacional de Proteção de Dados.'],
@@ -51,11 +52,18 @@ export function PrivacyScreen() {
         O que guardamos, com quem compartilhamos, por quanto tempo e como exercer seus direitos.
       </AppText>
       <Button
-        label="Termos de uso e Política de Privacidade"
+        label="Política de Privacidade completa"
         variant="secondary"
         icon={<FileText size={16} color={colors.text} />}
-        accessibilityHint="Abre o documento completo em PDF"
+        accessibilityHint="Abre a política no navegador"
         onPress={() => WebBrowser.openBrowserAsync(POLICY_URL)}
+      />
+      <Button
+        label="Como excluir sua conta"
+        variant="ghost"
+        accessibilityHint="Abre no navegador o passo a passo e o que fica guardado"
+        onPress={() => WebBrowser.openBrowserAsync(DELETION_URL)}
+        style={styles.mail}
       />
 
       <Section title="Seus direitos">

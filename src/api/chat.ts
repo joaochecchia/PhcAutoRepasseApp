@@ -18,7 +18,7 @@ export const chatApi = {
   send: (id: string, texto: string) => request<ChatMessage>(`/chat/conversas/${encodeURIComponent(id)}/mensagens`, { method: 'POST', body: { texto }, auth: true }),
   markRead: (id: string) => request<void>(`/chat/conversas/${encodeURIComponent(id)}/leitura`, { method: 'POST', auth: true }),
   unread: async (signal?: AbortSignal) => (await request<{ total: number }>('/chat/nao-lidas', { auth: true, signal })).total,
-  /** Pessoas que eu bloqueei: nenhum dos dois manda mensagem ao outro. Só quem já conversou pode ser bloqueado. */
+  /** Pessoas que eu bloqueei: nenhum dos dois manda mensagem ao outro. Dá para bloquear sem ter conversado (pelo anúncio). */
   blocks: (signal?: AbortSignal) => request<ChatBlock[]>('/chat/bloqueios', { auth: true, signal }),
   block: (usuarioId: string) => request<void>(`/chat/bloqueios/${encodeURIComponent(usuarioId)}`, { method: 'PUT', auth: true }),
   unblock: (usuarioId: string) =>

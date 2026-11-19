@@ -24,6 +24,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
 
 const TERMS_URL = 'https://phcauto.com/documentos/termos-uso-politica-privacidade-v1.1.pdf';
+const PRIVACY_URL = 'https://phcauto.com/politica-de-privacidade';
 
 /**
  * Criar conta, como no site: PF ou PJ, endereço com busca pelo CEP, foto opcional e aceite dos termos vigentes.
@@ -226,12 +227,23 @@ export function Register() {
             hitSlop={8}
             style={styles.termsLink}>
             <AppText variant="label" color="red">
-              Ler os Termos e a Política de Privacidade
+              Ler os Termos de Uso
+            </AppText>
+            <ExternalLink size={14} color={colors.red} />
+          </Pressable>
+          <Pressable
+            onPress={() => WebBrowser.openBrowserAsync(PRIVACY_URL)}
+            accessibilityRole="link"
+            accessibilityHint="Abre a Política de Privacidade no navegador"
+            hitSlop={8}
+            style={styles.termsLink}>
+            <AppText variant="label" color="red">
+              Ler a Política de Privacidade
             </AppText>
             <ExternalLink size={14} color={colors.red} />
           </Pressable>
           <View style={styles.accept}>
-            <AppText style={styles.flex}>Li o documento da versão vigente e aceito os Termos de Uso e a Política de Privacidade.</AppText>
+            <AppText style={styles.flex}>Li e aceito os Termos de Uso e a Política de Privacidade vigentes.</AppText>
             <Switch
               value={accepted}
               onValueChange={(next) => {

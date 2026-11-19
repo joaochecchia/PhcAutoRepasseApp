@@ -76,6 +76,14 @@ export function DeleteAccount({ hasPassword }: { hasPassword: boolean }) {
           items={['Nome, CPF ou CNPJ e e-mail', 'Pagamentos de planos e o aceite dos termos']}
           note="Depois desse prazo, também são apagados."
         />
+        <List
+          title="Guardamos por menos tempo"
+          items={[
+            'Conversas do chat: 180 dias, como prova da negociação',
+            'Logins e acessos (data, hora, IP e porta): 6 meses, pelo Marco Civil',
+            'Logs técnicos e cópias de segurança: 14 dias',
+          ]}
+        />
         <Notice tone="info" message="Um plano pago em vigor é encerrado na hora, sem reembolso do período restante." />
         {needsApple ? (
           <Notice
