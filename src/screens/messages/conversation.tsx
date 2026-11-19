@@ -1,14 +1,16 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { router, useNavigation } from 'expo-router';
-import { Check, CheckCheck, Lock, SendHorizontal, WifiOff } from 'lucide-react-native';
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { Ban, Check, CheckCheck, Ellipsis, Lock, SendHorizontal, WifiOff } from 'lucide-react-native';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { chatApi, type ChatConversation, type ChatEvent, type ChatMessage, type ChatMessagesPage } from '@/api/chat';
 import { markChatRead, resetTyping, sendChatMessage, signalTyping, useChatConnected, useChatEvents } from '@/api/chat-socket';
 import { AppText } from '@/components/app-text';
+import { Button } from '@/components/button';
+import { showDialog } from '@/components/dialog';
 import { Notice } from '@/components/notice';
 import { StateView } from '@/components/state-view';
 import { askForPush } from '@/hooks/use-push';
@@ -64,13 +66,67 @@ export function ConversationScreen({ id }: { id: string }) {
     enabled: Boolean(id),
     refetchInterval: connected ? false : 10_000,
   });
-  const list = messages.data?.pages.flatMap((page) => page.mensagens) ?? [];
+  const list = useMemo(() => messages.data?.pages.flatMap((page) => page.mensagens) ?? [], [messages.data]);
   const other = conversation.data?.outroNome ?? 'Conversa';
+  const otherId = conversation.data?.outroId ?? null;
   const typing = typingUntil > now;
+  // Bloqueio feito por mim. Quem me bloqueou só aparece quando o envio é recusado (mensagem do servidor).
+  const blocks = useQuery({ queryKey: ['chat-blocks'], queryFn: ({ signal }) => chatApi.blocks(signal), enabled: Boolean(otherId) });
+  const blocked = Boolean(otherId && blocks.data?.some((item) => item.usuarioId === otherId));
+  const toggleBlock = useMutation({
+    mutationFn: (next: boolean) => (next ? chatApi.block(otherId!) : chatApi.unblock(otherId!)),
+    onSuccess: (_, next) => {
+      Haptics.notificationAsync(next ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
+      cache.invalidateQueries({ queryKey: ['chat-blocks'] });
+    },
+    onError: (error) => showDialog({ title: 'Não deu certo', message: error.message }),
+  });
+
+  const reportMessage = useCallback(
+    (message: ChatMessage) =>
+      router.push({ pathname: '/denunciar', params: { tipo: 'MENSAGEM', alvo: message.id, assunto: `“${message.texto.slice(0, 160)}”` } }),
+    [],
+  );
+
+  const openOptions = useCallback(() => {
+    const lastTheirs = list.find((message) => message.autorId !== userId);
+    showDialog({
+      title: other,
+      message: lastTheirs
+        ? 'Para denunciar outra mensagem, toque e segure nela.'
+        : 'Bloqueado, nenhum dos dois manda mensagens ao outro. Dá para desbloquear depois.',
+      actions: [
+        { label: 'Cancelar', kind: 'cancel' },
+        ...(lastTheirs ? [{ label: 'Denunciar a última mensagem', onPress: () => reportMessage(lastTheirs) }] : []),
+        blocked
+          ? { label: 'Desbloquear', onPress: () => toggleBlock.mutate(false) }
+          : {
+              label: `Bloquear ${other}`,
+              kind: 'destructive' as const,
+              onPress: () => toggleBlock.mutate(true),
+            },
+      ],
+    });
+  }, [list, userId, other, blocked, reportMessage, toggleBlock]);
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: other });
-  }, [navigation, other]);
+    navigation.setOptions({
+      title: other,
+      headerRight: otherId
+        ? () => (
+            <Pressable
+              onPress={openOptions}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`Opções da conversa com ${other}`}
+              accessibilityHint="Denunciar ou bloquear"
+              style={styles.headerButton}>
+              <Ellipsis size={22} color={colors.text} />
+            </Pressable>
+          )
+        : undefined,
+    });
+  }, [navigation, other, otherId, openOptions, colors.text]);
 
   // Relógio só enquanto o "digitando…" está na tela.
   useEffect(() => {
@@ -226,8 +282,26 @@ export function ConversationScreen({ id }: { id: string }) {
           const mine = item.autorId === userId;
           const status = mine ? delivery(item, conversation.data) : null;
           return (
-            <View
+            <Pressable
               accessible
+              disabled={mine}
+              onLongPress={
+                mine
+                  ? undefined
+                  : () => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      showDialog({
+                        title: `Mensagem de ${other}`,
+                        message: item.texto.length > 160 ? `${item.texto.slice(0, 160)}…` : item.texto,
+                        actions: [
+                          { label: 'Cancelar', kind: 'cancel' },
+                          { label: 'Denunciar mensagem', kind: 'destructive', onPress: () => reportMessage(item) },
+                        ],
+                      });
+                    }
+              }
+              accessibilityActions={mine ? undefined : [{ name: 'longpress', label: 'Denunciar mensagem' }]}
+              onAccessibilityAction={mine ? undefined : (event) => event.nativeEvent.actionName === 'longpress' && reportMessage(item)}
               accessibilityLabel={`${mine ? 'Você' : other}: ${item.texto}. ${time.format(new Date(item.enviadaEm))}${status ? `. ${deliveryLabels[status]}` : ''}`}
               style={[
                 styles.bubble,
@@ -254,11 +328,26 @@ export function ConversationScreen({ id }: { id: string }) {
                   {deliveryLabels[status]}
                 </AppText>
               ) : null}
-            </View>
+            </Pressable>
           );
         }}
       />
-      {closed ? (
+      {blocked ? (
+        <View style={[styles.blocked, { borderTopColor: colors.border, paddingBottom: insets.bottom + space.md }]}>
+          <View style={styles.row}>
+            <Ban size={16} color={colors.muted} />
+            <AppText color="muted" style={styles.flex}>
+              Você bloqueou {other}. Nenhum dos dois manda mensagens ao outro enquanto o bloqueio durar.
+            </AppText>
+          </View>
+          <Button
+            label="Desbloquear"
+            variant="secondary"
+            loading={toggleBlock.isPending}
+            onPress={() => toggleBlock.mutate(false)}
+          />
+        </View>
+      ) : closed ? (
         <View style={[styles.closed, { borderTopColor: colors.border, paddingBottom: insets.bottom + space.md }]}>
           <Lock size={16} color={colors.muted} />
           <AppText color="muted" style={styles.flex}>
@@ -314,6 +403,8 @@ const styles = StyleSheet.create({
   theirs: { alignSelf: 'flex-start', borderBottomLeftRadius: radius.sm / 2 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end' },
   mineMeta: { opacity: 0.85 },
+  headerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  blocked: { gap: space.sm, padding: space.lg, borderTopWidth: StyleSheet.hairlineWidth },
   closed: { flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.lg, borderTopWidth: StyleSheet.hairlineWidth },
   composer: { paddingHorizontal: space.md, paddingTop: space.sm, borderTopWidth: StyleSheet.hairlineWidth, gap: space.sm },
   row: { flexDirection: 'row', alignItems: 'flex-end', gap: space.sm },

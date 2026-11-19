@@ -55,7 +55,7 @@ Detalhes na skill `phc-app-design`. O essencial pedido pelo usuário:
 - **Busca em destaque no topo** da tela inicial, com atalho para mensagens ao lado.
 - **Banner com foto** logo abaixo. Hoje usa `assets/images/hero.jpg`; no futuro o espaço será vendido a anunciantes, então já nasce como carrossel alimentado por uma lista.
 - Vitrine com abas (Vitrine PHC, Zero km, Seminovo, Repasse, Vendidos), carrosséis de recomendados e atalhos por faixa de preço.
-- **Animações fluidas**, incluindo a abertura do app com a logo do site (`assets/images/phc-auto-logo-disc.png`, recorte circular nítido da logo de 1024 px; também gera os ícones do app).
+- **Animações fluidas**, incluindo a abertura do app com a marca PHC Auto (`assets/images/splash-icon.png`). A marca nova (18/11/2026) está em `assets/images/brand/`; os ícones e as versões recortadas saem dela.
 - As capturas de outros apps de veículos que o usuário enviou são **referência de estrutura**. Nunca copie marca, nome, logo, texto ou arte de terceiros.
 
 ## Skills
@@ -96,7 +96,7 @@ Ele escuta em `127.0.0.1:8080`. Sem `EXPO_PUBLIC_API_URL`, o app usa o computado
 | Emulador Android | `http://10.0.2.2:8080` |
 | Simulador iOS | `http://127.0.0.1:8080` |
 | Celular com Expo Go na mesma rede | `http://<IP da máquina>:8080`, com `BACKEND_BIND=0.0.0.0` no `.env` do backend |
-| Produção (fase futura) | `https://phcauto.com` |
+| Produção | `https://phcauto.com`: `npm run start:prod` no Metro; já é o padrão dos perfis `preview` e `production` do EAS e de todo build de loja |
 
 Arquivos `.env*` com valores reais não entram no git; mantenha um `.env.example`.
 
@@ -122,4 +122,14 @@ Decisões que ainda precisam do usuário. Não as presuma resolvidas.
 
 1. **Chat em tempo real.** O WebSocket do backend só aceita as origens configuradas em `APP_CORS_ALLOWED_ORIGINS`. Pode ser preciso ajustar o backend para o app.
 2. **Pagamento com cartão.** A tokenização e o 3DS da Cielo usam scripts de navegador; no app provavelmente rodam numa WebView.
-3. **Assinatura de planos nas lojas.** Apple e Google têm regras sobre venda de serviços digitais dentro do app. Avaliar antes de publicar.
+3. ~~Assinatura de planos nas lojas~~ — **decidido em 18/11/2026** (ver "Assinaturas e lojas").
+
+## Assinaturas e lojas
+
+Decisão do usuário em 18/11/2026: o app é **só de consumo** dos planos, no Android e no iPhone. A contratação, a troca e o pagamento de plano acontecem só no site (Cielo, webhook e reconsulta no backend); a assinatura é da conta e vale no app ao entrar.
+
+- O app **não** vende plano: sem catálogo de planos, sem preços, sem botão ou link de compra, sem WebView de pagamento de plano, sem Google Play Billing nem compra da Apple. Convites de "assine/veja planos" viram textos neutros que levam a Menu › Meu plano.
+- Pode: mostrar o plano em vigor, validade, limites, uso, benefícios incluídos e avisos (vencido, pendente, renovação recusada); desligar a renovação automática e pedir reembolso (gestão da conta).
+- **Só no Android** há uma frase sem link: "A contratação e a troca de plano são feitas no site phcauto.com" (a Google Play permite em app de consumo, sem link direto). **No iPhone, nenhuma menção a comprar fora do app** (App Store 3.1.3, fora dos EUA).
+- Compra de **veículo** (bem físico) pela Cielo continua no app: as duas lojas exigem meio próprio para bens físicos.
+- Risco conhecido na Apple: a regra 3.1.3(b) pede que itens de assinatura multiplataforma também existam como compra da Apple. App só de consumo e sem nenhuma menção a compra costuma passar, mas a decisão é do revisor. Se a Apple exigir, as saídas são compra da Apple (StoreKit) ou, no Brasil, o link externo com a compra da Apple lado a lado (regras de junho de 2026).

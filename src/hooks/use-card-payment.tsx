@@ -1,8 +1,8 @@
 import { X } from 'lucide-react-native';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentType } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { WebView, type WebViewMessageEvent } from 'react-native-webview';
+import type { WebViewMessageEvent, WebViewProps } from 'react-native-webview';
 
 import { CardFlowError, threeDsOutcome, threeDsPage, tokenizeCard, type ThreeDsMessage } from '@/api/cielo';
 import { plansApi, type Authentication3ds, type CardToken, type MetodoPagamento } from '@/api/plans';
@@ -14,12 +14,25 @@ import { fullExpiry, holderName, type Card } from '@/utils/card';
 export type PaymentStep = '' | 'banco' | 'token' | 'operadora';
 
 type Pending = {
+  WebView: ComponentType<WebViewProps>;
   html: string;
   baseUrl: string;
   credit: boolean;
   resolve: (value: Authentication3ds | null) => void;
   reject: (error: Error) => void;
 };
+
+/**
+ * A WebView só é carregada quando o banco pede confirmação: o módulo nativo exige o app atualizado, e importá-lo no
+ * topo derrubaria o app inteiro num build antigo (o Expo Router carrega todas as rotas ao abrir).
+ */
+async function loadWebView() {
+  try {
+    return (await import('react-native-webview')).WebView as ComponentType<WebViewProps>;
+  } catch {
+    throw new CardFlowError('Para pagar com cartão, atualize o app PHC Auto. Enquanto isso, use o Pix.');
+  }
+}
 
 /** O desafio do banco depende da pessoa; 5 minutos cobrem SMS e aplicativo do banco. */
 const TIMEOUT = 5 * 60_000;
@@ -45,6 +58,7 @@ export function useCardPayment() {
     let autenticacao3ds: Authentication3ds | undefined;
     const mpi = session.autenticacao3ds;
     if (mpi) {
+      const WebView = await loadWebView();
       onStep('banco');
       const html = threeDsPage(mpi, {
         number: numero,
@@ -55,7 +69,7 @@ export function useCardPayment() {
         installments,
       });
       const result = await new Promise<Authentication3ds | null>((resolve, reject) =>
-        setPending({ html, baseUrl: mpi.urlLoja || 'https://phcauto.com', credit, resolve, reject }),
+        setPending({ WebView, html, baseUrl: mpi.urlLoja || 'https://phcauto.com', credit, resolve, reject }),
       );
       autenticacao3ds = result ?? undefined;
     }
@@ -153,7 +167,7 @@ function ThreeDsSheet({ pending, onDone }: { pending: Pending; onDone: (action: 
             Falando com o seu banco…
           </AppText>
         </View>
-        <WebView
+        <pending.WebView
           source={{ html: pending.html, baseUrl: pending.baseUrl }}
           originWhitelist={['*']}
           onMessage={onMessage}

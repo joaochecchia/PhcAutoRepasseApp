@@ -1,34 +1,16 @@
-import type { Periodicidade, PlanBenefits, PublicPlan } from '@/api/plans';
+import type { Periodicidade, PlanBenefits } from '@/api/plans';
 
-// Só apresentação, como no site (frontend/src/data/plans.ts): preços, limites e elegibilidade vêm do backend.
+// Só apresentação do plano da conta: limites e benefícios vêm do backend. O app não mostra catálogo nem preços de
+// planos (a contratação é no site).
 
-export const periodicidades: { value: Periodicidade; label: string; unit: string }[] = [
-  { value: 'DIARIO', label: 'Diário', unit: '/dia' },
-  { value: 'SEMANAL', label: 'Semanal', unit: '/semana' },
-  { value: 'MENSAL', label: 'Mensal', unit: '/mês' },
-  { value: 'ANUAL', label: 'Anual', unit: '/ano' },
+const periodicidades: { value: Periodicidade; label: string }[] = [
+  { value: 'DIARIO', label: 'Diário' },
+  { value: 'SEMANAL', label: 'Semanal' },
+  { value: 'MENSAL', label: 'Mensal' },
+  { value: 'ANUAL', label: 'Anual' },
 ];
 
 export const periodLabel = (p: Periodicidade | null) => periodicidades.find((item) => item.value === p)?.label ?? '';
-export const periodUnit = (p: Periodicidade) => periodicidades.find((item) => item.value === p)?.unit ?? '';
-
-export const FEATURED_PLAN = 'PRO_PJ';
-
-export const planPitch: Record<string, string> = {
-  FREE: 'Para colocar até 2 veículos na vitrine sem pagar nada.',
-  BASICO_PF: 'Para vender um carro sem compromisso, a partir de R$ 3 por dia.',
-  ESSENCIAL_PF: 'Para quem vende com frequência e precisa de mais anúncios.',
-  PRO_PF: 'Para quem quer anunciar sem limite de veículos.',
-  STARTER_PJ: 'Para a loja que está começando a vender online.',
-  PRO_PJ: 'Para revendas com estoque grande, sem limite de anúncios.',
-  TESTE_INTERNO: 'Plano de teste de pagamento, visível só para contas autorizadas. Benefícios do Básico.',
-};
-
-export const audienceLabel: Record<PublicPlan['publico'], string> = {
-  TODOS: 'Pessoa física e lojista',
-  PF: 'Pessoa física',
-  PJ: 'Lojista (CNPJ)',
-};
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const wholeCurrency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -36,10 +18,6 @@ const wholeCurrency = new Intl.NumberFormat('pt-BR', { style: 'currency', curren
 /** R$ 29 para valores inteiros, R$ 24,17 quando há centavos. */
 export function money(centavos: number) {
   return centavos % 100 === 0 ? wholeCurrency.format(centavos / 100) : currency.format(centavos / 100);
-}
-
-export function priceOf(plan: PublicPlan, periodicidade: Periodicidade) {
-  return plan.precos.find((preco) => preco.periodicidade === periodicidade)?.valorCentavos ?? null;
 }
 
 export function formatDate(value: string | null) {

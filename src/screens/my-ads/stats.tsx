@@ -63,14 +63,12 @@ export function StatsScreen() {
       return (
         <View style={[styles.upsell, { backgroundColor: colors.subtle, borderColor: colors.border }]}>
           <BarChart3 size={28} color={colors.muted} />
-          <AppText variant="heading">Veja quem se interessou pelos seus veículos</AppText>
+          <AppText variant="heading">Estatísticas não incluídas no seu plano</AppText>
           <AppText color="muted">
-            Visualizações por dia, quem favoritou e quem chamou no WhatsApp fazem parte dos planos Pro PF e Pro PJ.
+            Visualizações por dia, quem favoritou e quem chamou no WhatsApp aparecem aqui quando o plano da conta inclui
+            estatísticas.
           </AppText>
-          <Button
-            label="Conhecer os planos"
-            onPress={() => router.push('/planos')}
-          />
+          <Button label="Ver meu plano" variant="secondary" onPress={() => router.push('/planos')} />
         </View>
       );
     if (!single && data.anuncios.length === 0)

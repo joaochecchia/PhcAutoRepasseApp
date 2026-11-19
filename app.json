@@ -40,7 +40,7 @@
         {
           "backgroundColor": "#121315",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 160
+          "imageWidth": 220
         }
       ],
       "expo-status-bar",
@@ -56,7 +56,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/android-icon-monochrome.png",
+          "icon": "./assets/images/notification-icon.png",
           "color": "#cd1923"
         }
       ],

@@ -1,4 +1,3 @@
-import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { Check, Copy } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
@@ -6,8 +5,23 @@ import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
+import { showDialog } from '@/components/dialog';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
+
+/**
+ * O módulo nativo só é carregado na hora de copiar: num app instalado antes do expo-clipboard, importar no topo
+ * derrubaria o app inteiro (o Expo Router carrega todas as rotas ao abrir).
+ */
+async function copyText(text: string) {
+  try {
+    const Clipboard = await import('expo-clipboard');
+    await Clipboard.setStringAsync(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** Código para copiar (Pix copia e cola, linha digitável), com confirmação visual e háptica. */
 export function CopyField({ label, value, copyValue }: { label: string; value: string; copyValue?: string }) {
@@ -31,7 +45,13 @@ export function CopyField({ label, value, copyValue }: { label: string; value: s
         variant="secondary"
         icon={copied ? <Check size={16} color={colors.deal} /> : <Copy size={16} color={colors.text} />}
         onPress={async () => {
-          await Clipboard.setStringAsync(copyValue ?? value);
+          if (!(await copyText(copyValue ?? value))) {
+            showDialog({
+              title: 'Não foi possível copiar',
+              message: 'Toque e segure no código para selecionar e copiar. Se o problema continuar, atualize o app.',
+            });
+            return;
+          }
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           setCopied(true);
         }}

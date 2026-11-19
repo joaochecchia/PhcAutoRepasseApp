@@ -98,18 +98,6 @@ export type SubscriptionStatus = {
 export type CardToken = { paymentToken: string; bandeira: string; finalNumero: string };
 export type Authentication3ds = { cavv: string | null; xid: string | null; eci: number; versao: string; referenceId: string | null };
 
-export type CheckoutPayload = {
-  plano: string;
-  periodicidade: Periodicidade;
-  metodo: MetodoPagamento;
-  cartao?: CardToken;
-  autenticacao3ds?: Authentication3ds;
-  /** Crédito no plano anual: 1 a 12, sem juros. */
-  parcelas?: number;
-  /** Crédito no plano mensal ou anual: salva o cartão na Cielo e renova sozinho. */
-  renovacaoAutomatica?: boolean;
-};
-export type CheckoutResult = { cobranca: PaymentCharge; assinatura: SubscriptionSummary };
 
 /** Credenciais temporárias da Cielo emitidas pelo backend para este pagamento. */
 export type CardSession = {
@@ -138,15 +126,10 @@ export type CardSession = {
 const one = (id: string) => encodeURIComponent(id);
 
 export const plansApi = {
+  /** Catálogo com preços: só no painel administrativo (o app não vende plano). */
   list: (signal?: AbortSignal) => getJson<PublicPlan[]>('/planos', undefined, { signal }),
   mine: (signal?: AbortSignal) => request<SubscriptionStatus>('/assinaturas/minha', { auth: true, signal }),
-  /** Planos de teste, só para contas liberadas no backend; para as demais, lista vazia. */
-  internal: (signal?: AbortSignal) => request<PublicPlan[]>('/assinaturas/planos-internos', { auth: true, signal }),
-  paymentMethods: (signal?: AbortSignal) =>
-    request<MetodoPagamento[]>('/assinaturas/metodos-pagamento', { auth: true, signal }),
-  // A autorização do cartão ou o registro do boleto pode levar até 40 s na operadora.
-  checkout: (payload: CheckoutPayload) =>
-    request<CheckoutResult>('/assinaturas/checkout', { method: 'POST', body: payload, auth: true, timeoutMs: 60_000 }),
+  /** Credenciais da Cielo para o cartão da compra de veículo (bem físico; a cobrança de plano não existe no app). */
   cardSession: (metodo: MetodoPagamento) =>
     request<CardSession>('/assinaturas/checkout/sessao-cartao', { method: 'POST', body: { metodo }, auth: true }),
   charge: (id: string, signal?: AbortSignal) =>

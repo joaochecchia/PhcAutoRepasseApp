@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import { MessagesSquare, Search, WifiOff } from 'lucide-react-native';
 import { useState } from 'react';
@@ -12,6 +11,7 @@ import { useChatUnread } from '@/api/chat-socket';
 import { apiOrigin, mediaUrl } from '@/api/client';
 import type { SearchAd } from '@/api/contracts';
 import { AppText } from '@/components/app-text';
+import { BrandLogo } from '@/components/brand-logo';
 import { Chip } from '@/components/chip';
 import { HeroCarousel } from '@/components/hero-carousel';
 import { PressableScale } from '@/components/pressable-scale';
@@ -82,10 +82,7 @@ export function Home() {
       <Animated.View style={[styles.root, enter]}>
         <View style={[styles.header, { paddingTop: insets.top + space.sm, backgroundColor: colors.bg }]}>
           <View style={styles.brand}>
-            <Image source={require('@/assets/images/phc-auto-logo-disc.png')} style={styles.logo} accessibilityLabel="PHC Auto" />
-            <AppText variant="heading" style={styles.brandText}>
-              PHC <AppText variant="heading" color="red">Auto</AppText>
-            </AppText>
+            <BrandLogo height={30} />
           </View>
           <View style={styles.searchRow}>
             <PressableScale
@@ -289,8 +286,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { paddingHorizontal: space.lg, paddingBottom: space.md, gap: space.md },
   brand: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm },
-  logo: { width: 30, height: 30 },
-  brandText: { fontSize: 19 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   search: {
     flex: 1,

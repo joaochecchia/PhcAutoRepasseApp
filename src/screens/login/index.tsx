@@ -1,5 +1,4 @@
 import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { ArrowLeft, LockKeyhole, MailCheck } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -32,6 +31,7 @@ import { ApiError } from '@/api/client';
 import { signInWithApple } from '@/api/apple';
 import { signInWithGoogle } from '@/api/google';
 import { AppText } from '@/components/app-text';
+import { BrandLogo } from '@/components/brand-logo';
 import { Button } from '@/components/button';
 import { AppleButton } from '@/components/apple-button';
 import { GoogleButton } from '@/components/google-button';
@@ -205,7 +205,7 @@ export function Login() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xxl }]}
         keyboardShouldPersistTaps="handled">
         <View style={styles.brand}>
-          <Image source={require('@/assets/images/phc-auto-logo-disc.png')} style={styles.logo} accessibilityLabel="PHC Auto" />
+          <BrandLogo height={56} />
         </View>
 
         {!challenge ? (
@@ -376,7 +376,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: space.lg, gap: space.xl },
   brand: { alignItems: 'center', marginTop: space.sm },
-  logo: { width: 64, height: 64 },
   step: { gap: space.lg },
   heading: { gap: space.xs },
   fields: { gap: space.lg },

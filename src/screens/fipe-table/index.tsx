@@ -47,7 +47,7 @@ export function FipeTableScreen() {
         <StateView
           icon={Table2}
           title="Entre para consultar a FIPE"
-          message="O plano Free inclui 5 consultas por mês. Planos pagos têm mais consultas ou consultas ilimitadas."
+          message="Cada conta tem consultas FIPE por mês, conforme o plano."
           actionLabel="Entrar"
           onAction={() => router.push('/entrar')}
         />
@@ -94,11 +94,7 @@ export function FipeTableScreen() {
                   />
                 </View>
                 {(q.restantes ?? 0) === 0 ? (
-                  <Button
-                    label="Ver planos com FIPE ilimitada"
-                    variant="ghost"
-                    onPress={() => router.push('/planos')}
-                  />
+                  <Button label="Ver meu plano" variant="ghost" onPress={() => router.push('/planos')} />
                 ) : null}
               </>
             )}

@@ -1,59 +1,46 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { Barcode, Check, CircleAlert, Clock3, CreditCard, Minus, QrCode, RefreshCw, ShieldCheck, Sparkles, Undo2, WifiOff } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Check, Clock3, Crown, RefreshCw, Undo2, WifiOff } from 'lucide-react-native';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { plansApi, type Periodicidade, type PublicPlan } from '@/api/plans';
+import { myAdsApi } from '@/api/my-ads';
+import { plansApi, type SubscriptionStatus, type SubscriptionSummary } from '@/api/plans';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
-import { Chip } from '@/components/chip';
 import { showDialog } from '@/components/dialog';
 import { Notice } from '@/components/notice';
 import { Skeleton } from '@/components/skeleton';
 import { StateView } from '@/components/state-view';
-import {
-  audienceLabel,
-  benefitLines,
-  FEATURED_PLAN,
-  formatDate,
-  money,
-  periodicidades,
-  periodLabel,
-  periodUnit,
-  planPitch,
-  priceOf,
-} from '@/data/plans';
-import { useAccount } from '@/hooks/use-account';
+import { benefitLines, formatDate, money, periodLabel } from '@/data/plans';
 import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
 
-type Audience = 'PF' | 'PJ';
+const statusLabel: Record<SubscriptionSummary['status'], string> = {
+  ATIVA: 'Ativo',
+  GRATUITO: 'Gratuito',
+  PENDENTE: 'Aguardando pagamento',
+  SUSPENSA: 'Suspenso',
+  CANCELADA: 'Cancelado',
+  EXPIRADA: 'Vencido',
+};
 
 /**
- * Planos e preços, com o plano atual de quem está logado (PlansPage do site): assinar e renovar abrem o pagamento no
- * app (/assinar); em Seu plano, confirmar a renovação recusada, desligar a renovação automática, pedir reembolso e
- * retomar o Pix ou boleto em aberto.
+ * Meu plano: o app só mostra e gerencia o plano da conta; não vende plano nem leva à compra (as lojas exigem a
+ * cobrança delas para serviço digital comprado no app). A contratação é no site, pela Cielo, e a assinatura é da
+ * conta: entrou com a mesma conta, o plano vale aqui. Desligar a renovação e pedir o reembolso são gestão da conta.
+ *
+ * Só no Android há uma frase, sem link, dizendo que a contratação é no site: a Google Play permite isso em app de
+ * consumo. Na App Store (fora dos EUA) não pode haver nenhuma chamada para comprar fora do app.
  */
 export function PlansScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const session = useSession();
-  const signedIn = session.status === 'authenticated';
-  const [chosenAudience, setAudience] = useState<Audience | null>(null);
-  const [periodicidade, setPeriodicidade] = useState<Periodicidade>('MENSAL');
-
+  const signedIn = useSession().status === 'authenticated';
   const queryClient = useQueryClient();
-  const plans = useQuery({ queryKey: ['plans'], queryFn: ({ signal }) => plansApi.list(signal) });
-  // Planos de teste aparecem só para contas liberadas no backend; sem eles a tela segue normal.
-  const internal = useQuery({
-    queryKey: ['plans-internal', signedIn],
-    queryFn: ({ signal }) => plansApi.internal(signal),
-    enabled: signedIn,
-  });
   const mine = useQuery({ queryKey: ['subscription'], queryFn: ({ signal }) => plansApi.mine(signal), enabled: signedIn });
+  const quota = useQuery({ queryKey: ['ad-quota'], queryFn: ({ signal }) => myAdsApi.quota(signal), enabled: signedIn });
   const action = useMutation({
     mutationFn: async (kind: 'desligar' | 'reembolso') => {
       if (kind === 'desligar') {
@@ -66,35 +53,38 @@ export function PlansScreen() {
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['subscription'] }),
   });
-  const profile = useAccount();
-  const tipoPessoa = profile.data?.tipoPessoa ?? null;
-  // Começa no tipo da conta; sem sessão, pessoa física.
-  const audience: Audience = chosenAudience ?? tipoPessoa ?? 'PF';
-  const visible = useMemo(
-    () =>
-      [...(plans.data ?? []), ...(internal.data ?? [])].filter((plan) => plan.publico === 'TODOS' || plan.publico === audience),
-    [plans.data, internal.data, audience],
-  );
-  const offered = useMemo(
-    () => new Set(visible.flatMap((plan) => plan.precos.map((preco) => preco.periodicidade))),
-    [visible],
-  );
-  const current = mine.data?.atual ?? null;
-  const renewal = mine.data?.recorrencia ?? null;
-  const refund = mine.data?.reembolso ?? null;
-  const pending = mine.data?.cobrancaPendente ?? null;
-  const pendingPayable = (pending?.metodo === 'PIX' && pending.pix) || (pending?.metodo === 'BOLETO' && pending.boleto);
 
-  function subscribe(plan: PublicPlan) {
-    if (!signedIn) {
-      router.push('/entrar');
-      return;
-    }
-    router.push({ pathname: '/assinar', params: { plano: plan.codigo, periodicidade } });
-  }
+  if (!signedIn)
+    return (
+      <View style={[styles.flex, { backgroundColor: colors.bg }]}>
+        <StateView
+          icon={Crown}
+          title="Entre para ver seu plano"
+          message="O plano, a validade e os limites de anúncios ficam na sua conta."
+          actionLabel="Entrar"
+          onAction={() => router.push('/entrar')}
+        />
+      </View>
+    );
+  if (mine.isError)
+    return (
+      <View style={[styles.flex, { backgroundColor: colors.bg }]}>
+        <StateView
+          icon={WifiOff}
+          title="Não carregamos o seu plano"
+          message={mine.error.message}
+          actionLabel="Tentar de novo"
+          onAction={() => mine.refetch()}
+        />
+      </View>
+    );
+
+  const data = mine.data;
+  const current = data?.atual ?? null;
 
   function confirmAction(kind: 'desligar' | 'reembolso') {
     action.reset();
+    const refund = data?.reembolso;
     showDialog({
       title: kind === 'desligar' ? 'Desligar a renovação automática?' : 'Cancelar com reembolso?',
       message:
@@ -111,94 +101,33 @@ export function PlansScreen() {
   return (
     <ScrollView
       style={{ backgroundColor: colors.bg }}
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xl }]}>
-      <View style={styles.intro}>
-        <AppText variant="overline" color="red">
-          Planos para anunciar
-        </AppText>
-        <AppText variant="title">Anuncie com FIPE inclusa e pague só pelo tempo que precisar.</AppText>
-        <AppText color="muted">
-          Comece grátis com até 2 veículos. No anual você paga 10 meses, leva 12 e parcela em até 12x sem juros.
-        </AppText>
-      </View>
-
-      {signedIn ? (
-        <View style={[styles.mine, { backgroundColor: colors.subtle }]} accessibilityLiveRegion="polite">
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xl }]}
+      accessibilityLiveRegion="polite">
+      {mine.isPending || !data ? (
+        <>
+          <Skeleton height={150} rounded={radius.lg} />
+          <Skeleton height={120} rounded={radius.lg} />
+        </>
+      ) : data.acessoTotal ? (
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <AppText variant="overline" color="muted">
             Seu plano
           </AppText>
-          {mine.isPending ? (
-            <>
-              <Skeleton width="50%" height={18} />
-              <Skeleton width="80%" height={12} />
-            </>
-          ) : mine.isError ? (
-            <Notice
-              tone="error"
-              message="Não carregamos o seu plano."
-              actionLabel="Tentar de novo"
-              actionLoading={mine.isFetching}
-              onAction={() => mine.refetch()}
-            />
-          ) : mine.data?.acessoTotal ? (
-            <>
-              <AppText variant="heading">Conta do dono</AppText>
-              <AppText color="muted">Todos os benefícios liberados, sem limite de anúncios ou consultas.</AppText>
-            </>
-          ) : current ? (
-            <>
-              <AppText variant="heading">{current.planoNome}</AppText>
-              <AppText color="muted">
-                {current.status === 'GRATUITO'
-                  ? 'Plano gratuito, sem validade.'
-                  : `${periodLabel(current.periodicidade)} · válido até ${formatDate(current.fimEm)}`}
-              </AppText>
-              {current.beneficios.limiteConsultasFipeMes != null ? (
-                <AppText variant="caption" color="muted">
-                  {mine.data?.consultasFipeUsadasMes ?? 0} de {current.beneficios.limiteConsultasFipeMes} consultas FIPE
-                  usadas este mês
-                </AppText>
-              ) : null}
-              {mine.data?.agendadas.map((next) => (
-                <View key={next.id ?? next.planoCodigo} style={styles.inline}>
-                  <Clock3 size={14} color={colors.muted} />
-                  <AppText variant="caption" color="muted" style={styles.flex}>
-                    {next.planoNome} {periodLabel(next.periodicidade).toLowerCase()} de {formatDate(next.inicioEm)} a{' '}
-                    {formatDate(next.fimEm)}
-                  </AppText>
-                </View>
-              ))}
-              {renewal?.status === 'ATIVA' ? (
-                <View style={styles.inline}>
-                  <RefreshCw size={14} color={colors.muted} />
-                  <AppText variant="caption" color="muted" style={styles.flex}>
-                    Renova em {formatDate(renewal.proximaCobrancaEm)} no cartão {renewal.cartao.bandeira ?? ''} final{' '}
-                    {renewal.cartao.finalNumero ?? '—'}
-                    {renewal.parcelas > 1 ? ` (${renewal.parcelas}x)` : ''}.
-                  </AppText>
-                </View>
-              ) : null}
-              {renewal?.status === 'AGUARDANDO_CLIENTE' ? (
-                <View style={styles.alert}>
-                  <Notice tone="error" message={renewal.mensagem} />
-                  <Button
-                    label={`Confirmar renovação de ${money(renewal.valorCentavos)}`}
-                    icon={<CreditCard size={16} color={colors.onRed} />}
-                    onPress={() => router.push({ pathname: '/assinar', params: { modo: 'confirmar' } })}
-                  />
-                </View>
-              ) : null}
-              {pendingPayable && pending ? (
-                <Button
-                  label={`${pending.metodo === 'BOLETO' ? 'Boleto' : 'Pix'} de ${money(pending.valorCentavos)} aguardando pagamento`}
-                  variant="secondary"
-                  icon={
-                    pending.metodo === 'BOLETO' ? <Barcode size={16} color={colors.text} /> : <QrCode size={16} color={colors.text} />
-                  }
-                  onPress={() => router.push({ pathname: '/assinar', params: { modo: 'retomar' } })}
-                />
-              ) : null}
-              {renewal ? (
+          <AppText variant="title">Conta do dono</AppText>
+          <AppText color="muted">Todos os benefícios liberados, sem limite de anúncios ou consultas.</AppText>
+        </View>
+      ) : !current ? (
+        <StateView icon={Crown} title="Nenhum plano encontrado" message="Sua conta ainda não tem plano registrado." compact />
+      ) : (
+        <>
+          <PlanCard current={current} data={data} />
+          <Warnings current={current} data={data} />
+          <Usage current={current} data={data} quota={quota.data ?? null} quotaLoading={quota.isPending} />
+          <Benefits current={current} />
+
+          {data.recorrencia || data.reembolso ? (
+            <View style={styles.actions}>
+              {data.recorrencia ? (
                 <Button
                   label="Desligar renovação automática"
                   variant="ghost"
@@ -208,9 +137,9 @@ export function PlansScreen() {
                   onPress={() => confirmAction('desligar')}
                 />
               ) : null}
-              {refund ? (
+              {data.reembolso ? (
                 <Button
-                  label={`Cancelar com reembolso (até ${formatDate(refund.ate)})`}
+                  label={`Cancelar com reembolso (até ${formatDate(data.reembolso.ate)})`}
                   variant="ghost"
                   icon={<Undo2 size={16} color={colors.red} />}
                   loading={action.isPending && action.variables === 'reembolso'}
@@ -227,187 +156,160 @@ export function PlansScreen() {
                   onAction={() => action.variables && action.mutate(action.variables)}
                 />
               ) : null}
-            </>
+            </View>
+          ) : null}
+
+          {Platform.OS === 'android' ? (
+            <AppText variant="caption" color="muted">
+              A contratação e a troca de plano são feitas no site phcauto.com. O plano é da sua conta e vale no site e
+              no app.
+            </AppText>
           ) : (
-            <AppText color="muted">Nenhum plano encontrado.</AppText>
+            <AppText variant="caption" color="muted">
+              O plano é da sua conta e vale no site e no app.
+            </AppText>
           )}
-        </View>
-      ) : null}
-
-      <View style={styles.group}>
-        <View style={styles.chips}>
-          {(['PF', 'PJ'] as Audience[]).map((value) => (
-            <Chip
-              key={value}
-              label={value === 'PF' ? 'Pessoa física' : 'Lojista (CNPJ)'}
-              selected={audience === value}
-              onPress={() => setAudience(value)}
-            />
-          ))}
-        </View>
-        <View style={styles.chips}>
-          {periodicidades
-            .filter(({ value }) => offered.size === 0 || offered.has(value))
-            .map(({ value, label }) => (
-              <Chip
-                key={value}
-                label={value === 'ANUAL' ? `${label} · 2 meses grátis` : label}
-                selected={periodicidade === value}
-                onPress={() => setPeriodicidade(value)}
-              />
-            ))}
-        </View>
-      </View>
-
-      {plans.isPending ? (
-        [0, 1, 2].map((key) => <Skeleton key={key} height={260} rounded={radius.lg} />)
-      ) : plans.isError ? (
-        <StateView
-          icon={WifiOff}
-          title="Planos indisponíveis"
-          message={plans.error.message}
-          actionLabel="Tentar de novo"
-          onAction={() => plans.refetch()}
-          compact
-        />
-      ) : visible.length === 0 ? (
-        <StateView
-          icon={Sparkles}
-          title="Nenhum plano disponível"
-          message="Ainda não há planos ativos para este tipo de anunciante."
-          compact
-        />
-      ) : (
-        visible.map((plan) => (
-          <PlanCard
-            key={plan.codigo}
-            plan={plan}
-            periodicidade={periodicidade}
-            isCurrent={current?.planoCodigo === plan.codigo}
-            wrongAudience={Boolean(tipoPessoa) && plan.publico !== 'TODOS' && plan.publico !== tipoPessoa}
-            signedIn={signedIn}
-            onMonthly={() => setPeriodicidade('MENSAL')}
-            onSubscribe={() => subscribe(plan)}
-          />
-        ))
+        </>
       )}
-
-      <View style={styles.inline}>
-        <ShieldCheck size={16} color={colors.muted} />
-        <AppText variant="caption" color="muted" style={styles.flex}>
-          Pagamento por Pix, cartão de crédito, débito ou boleto, processado pela Cielo. No crédito, os planos mensal e
-          anual renovam sozinhos no cartão salvo pela Cielo; você desliga quando quiser. Desistiu? Peça o reembolso
-          integral em até 7 dias da contratação (no boleto, pelo WhatsApp da PHC Auto). Itens “em breve” passam a valer
-          para quem já tem o plano, sem custo extra.
-        </AppText>
-      </View>
     </ScrollView>
   );
 }
 
-function PlanCard({
-  plan,
-  periodicidade,
-  isCurrent,
-  wrongAudience,
-  signedIn,
-  onMonthly,
-  onSubscribe,
-}: {
-  plan: PublicPlan;
-  periodicidade: Periodicidade;
-  isCurrent: boolean;
-  wrongAudience: boolean;
-  signedIn: boolean;
-  onMonthly: () => void;
-  onSubscribe: () => void;
-}) {
+function PlanCard({ current, data }: { current: SubscriptionSummary; data: SubscriptionStatus }) {
   const { colors } = useTheme();
-  const valor = priceOf(plan, periodicidade);
-  const mensal = priceOf(plan, 'MENSAL');
-  const featured = plan.codigo === FEATURED_PLAN;
-  const note = plan.gratuito
-    ? 'Sem cartão e sem cobrança.'
-    : valor == null
-      ? `A partir de ${money(mensal ?? 0)} por mês.`
-      : periodicidade === 'ANUAL' && mensal != null
-        ? `Até 12x de ${money(Math.round(valor / 12))} sem juros · economia de ${money(mensal * 12 - valor)}`
-        : periodicidade === 'MENSAL'
-          ? 'Renova sozinho no cartão de crédito. Desligue quando quiser.'
-          : 'Ideal para vender um veículo rapidamente.';
+  const free = current.status === 'GRATUITO';
+  const active = current.status === 'ATIVA' || free;
+  const renewal = data.recorrencia;
   return (
-    <View
-      style={[
-        styles.card,
-        {
-          backgroundColor: colors.surface,
-          borderColor: isCurrent || featured ? colors.red : colors.border,
-          borderWidth: isCurrent || featured ? 1.5 : StyleSheet.hairlineWidth,
-        },
-      ]}>
-      {isCurrent || featured ? (
-        <View style={[styles.badge, { backgroundColor: colors.red }]}>
-          <AppText variant="label" color="onRed">
-            {isCurrent ? 'Seu plano' : 'Recomendado para revendas'}
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={styles.row}>
+        <AppText variant="overline" color="muted" style={styles.flex}>
+          Seu plano
+        </AppText>
+        <View style={[styles.badge, { backgroundColor: active ? colors.dealTint : colors.redTint }]}>
+          <AppText variant="label" color={active ? 'deal' : 'red'}>
+            {statusLabel[current.status]}
+          </AppText>
+        </View>
+      </View>
+      <AppText variant="title">{current.planoNome}</AppText>
+      <AppText color="muted">
+        {free
+          ? 'Sem validade.'
+          : `${periodLabel(current.periodicidade)}${current.inicioEm ? ` · de ${formatDate(current.inicioEm)}` : ''}${
+              current.fimEm ? ` até ${formatDate(current.fimEm)}` : ''
+            }`}
+      </AppText>
+      {renewal?.status === 'ATIVA' ? (
+        <View style={styles.inline}>
+          <RefreshCw size={14} color={colors.muted} />
+          <AppText variant="caption" color="muted" style={styles.flex}>
+            Renova sozinho em {formatDate(renewal.proximaCobrancaEm)} no cartão {renewal.cartao.bandeira ?? ''} final{' '}
+            {renewal.cartao.finalNumero ?? '—'}.
           </AppText>
         </View>
       ) : null}
-      <AppText variant="overline" color="muted">
-        {audienceLabel[plan.publico]}
-      </AppText>
-      <AppText variant="title">{plan.nome}</AppText>
-      {planPitch[plan.codigo] ? <AppText color="muted">{planPitch[plan.codigo]}</AppText> : null}
-      <View style={styles.price}>
-        {plan.gratuito ? (
-          <>
-            <AppText variant="display">Grátis</AppText>
-            <AppText color="muted">sem prazo</AppText>
-          </>
-        ) : valor != null ? (
-          <>
-            <AppText variant="display">{money(valor)}</AppText>
-            <AppText color="muted">{periodUnit(periodicidade)}</AppText>
-          </>
-        ) : (
-          <AppText variant="heading">Só mensal ou anual</AppText>
-        )}
-      </View>
-      <AppText variant="caption" color="muted">
-        {note}
-      </AppText>
-      {plan.gratuito ? (
-        signedIn ? (
-          <Button label={isCurrent ? 'Seu plano atual' : 'Incluso na sua conta'} variant="secondary" disabled />
-        ) : (
-          <Button label="Entrar ou criar conta" variant="secondary" onPress={() => router.push('/entrar')} />
-        )
-      ) : wrongAudience ? (
-        <Button label={`Exclusivo para ${plan.publico === 'PJ' ? 'lojistas' : 'pessoa física'}`} variant="secondary" disabled />
-      ) : valor == null ? (
-        <Button label="Ver preço mensal" variant="secondary" onPress={onMonthly} />
-      ) : (
-        <Button
-          label={isCurrent ? 'Renovar plano' : `Assinar ${plan.nome}`}
-          variant={featured || isCurrent ? 'primary' : 'secondary'}
-          onPress={onSubscribe}
-        />
-      )}
-      <View style={styles.benefits}>
-        {benefitLines(plan.beneficios, plan.gratuito).map((line) => (
-          <View key={line.text} style={styles.benefit}>
-            {line.included ? <Check size={16} color={colors.deal} /> : <Minus size={16} color={colors.muted} />}
-            <AppText color={line.included ? 'text' : 'muted'} style={styles.flex}>
-              {line.text}
-              {line.soon ? (
-                <AppText variant="caption" color="muted">
-                  {' '}
-                  · em breve
-                </AppText>
-              ) : null}
-            </AppText>
+      {data.agendadas.map((next) => (
+        <View key={next.id ?? next.planoCodigo} style={styles.inline}>
+          <Clock3 size={14} color={colors.muted} />
+          <AppText variant="caption" color="muted" style={styles.flex}>
+            Depois: {next.planoNome} de {formatDate(next.inicioEm)} a {formatDate(next.fimEm)}
+          </AppText>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Avisos de plano vencido ou inativo e de pagamento ainda não confirmado. Só informam: não há pagamento no app. */
+function Warnings({ current, data }: { current: SubscriptionSummary; data: SubscriptionStatus }) {
+  const notices: string[] = [];
+  if (current.status === 'EXPIRADA') notices.push(`O plano ${current.planoNome} venceu em ${formatDate(current.fimEm)}.`);
+  if (current.status === 'SUSPENSA') notices.push(`O plano ${current.planoNome} está suspenso.`);
+  if (current.status === 'CANCELADA') notices.push(`O plano ${current.planoNome} foi cancelado.`);
+  if (current.status === 'PENDENTE') notices.push('O pagamento do plano ainda não foi confirmado.');
+  if (data.recorrencia?.status === 'AGUARDANDO_CLIENTE')
+    notices.push(`O banco não aprovou a renovação automática. O plano vale até ${formatDate(current.fimEm)}.`);
+  if (data.cobrancaPendente && current.status !== 'PENDENTE')
+    notices.push(`Há um pagamento de ${money(data.cobrancaPendente.valorCentavos)} aguardando confirmação.`);
+  if (notices.length === 0) return null;
+  return (
+    <View style={styles.actions}>
+      {notices.map((message) => (
+        <Notice key={message} tone="error" message={message} />
+      ))}
+    </View>
+  );
+}
+
+function Usage({
+  current,
+  data,
+  quota,
+  quotaLoading,
+}: {
+  current: SubscriptionSummary;
+  data: SubscriptionStatus;
+  quota: { limite: number | null; publicados: number } | null;
+  quotaLoading: boolean;
+}) {
+  const { colors } = useTheme();
+  const fipeLimit = current.beneficios.limiteConsultasFipeMes;
+  const rows: { label: string; used: number; limit: number | null }[] = [];
+  if (quota) rows.push({ label: 'Anúncios publicados', used: quota.publicados, limit: quota.limite });
+  if (fipeLimit !== 0) rows.push({ label: 'Consultas FIPE este mês', used: data.consultasFipeUsadasMes, limit: fipeLimit });
+  return (
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <AppText variant="heading">Limites</AppText>
+      {quotaLoading ? <Skeleton height={36} /> : null}
+      {rows.map((row) => {
+        const share = row.limit ? Math.min(1, row.used / row.limit) : 0;
+        const full = row.limit != null && row.used >= row.limit;
+        return (
+          <View key={row.label} style={styles.meterRow} accessible accessibilityLabel={meterLabel(row)}>
+            <View style={styles.row}>
+              <AppText style={styles.flex}>{row.label}</AppText>
+              <AppText variant="bodyStrong" color={full ? 'red' : 'text'}>
+                {row.limit == null ? `${row.used} · sem limite` : `${row.used} de ${row.limit}`}
+              </AppText>
+            </View>
+            {row.limit != null ? (
+              <View style={[styles.meter, { backgroundColor: colors.border }]}>
+                <View style={[styles.meterFill, { width: `${Math.round(share * 100)}%`, backgroundColor: full ? colors.red : colors.deal }]} />
+              </View>
+            ) : null}
           </View>
-        ))}
-      </View>
+        );
+      })}
+    </View>
+  );
+}
+
+const meterLabel = (row: { label: string; used: number; limit: number | null }) =>
+  row.limit == null ? `${row.label}: ${row.used}, sem limite` : `${row.label}: ${row.used} de ${row.limit}`;
+
+/** Só o que o plano inclui; nada do que ele não tem (sem vitrine de outros planos no app). */
+function Benefits({ current }: { current: SubscriptionSummary }) {
+  const { colors } = useTheme();
+  const lines = benefitLines(current.beneficios, current.status === 'GRATUITO').filter((line) => line.included);
+  if (lines.length === 0) return null;
+  return (
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <AppText variant="heading">Incluído no seu plano</AppText>
+      {lines.map((line) => (
+        <View key={line.text} style={styles.inline}>
+          <Check size={16} color={colors.deal} />
+          <AppText style={styles.flex}>
+            {line.text}
+            {line.soon ? (
+              <AppText variant="caption" color="muted">
+                {' '}
+                · em breve
+              </AppText>
+            ) : null}
+          </AppText>
+        </View>
+      ))}
     </View>
   );
 }
@@ -415,15 +317,12 @@ function PlanCard({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: space.lg, gap: space.lg },
-  intro: { gap: space.xs },
-  mine: { padding: space.lg, borderRadius: radius.lg, gap: space.xs },
-  inline: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs },
-  alert: { gap: space.sm, marginTop: space.xs },
-  group: { gap: space.sm },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  card: { padding: space.lg, borderRadius: radius.lg, gap: space.sm },
-  badge: { alignSelf: 'flex-start', paddingHorizontal: space.sm + 2, paddingVertical: 3, borderRadius: radius.pill },
-  price: { flexDirection: 'row', alignItems: 'baseline', gap: space.xs, marginTop: space.xs },
-  benefits: { gap: space.sm, marginTop: space.sm },
-  benefit: { flexDirection: 'row', gap: space.sm, alignItems: 'flex-start' },
+  card: { padding: space.lg, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, gap: space.sm },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  inline: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
+  badge: { paddingHorizontal: space.sm + 2, paddingVertical: 3, borderRadius: radius.pill },
+  actions: { gap: space.sm },
+  meterRow: { gap: space.xs },
+  meter: { height: 6, borderRadius: 3, overflow: 'hidden' },
+  meterFill: { height: 6, borderRadius: 3 },
 });

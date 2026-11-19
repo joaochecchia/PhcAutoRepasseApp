@@ -14,7 +14,7 @@ O app tem interface própria, diferente do site, mas a mesma marca. Use junto:
 
 ## Marca
 
-- Logo: `assets/images/phc-auto-logo-disc.png` (recorte circular da versão de 1024 px, fundo transparente; use esta no app). Originais do site: `phc-auto-logo.jpeg` (1024 px, fundo branco) e `phc-auto-logo-dark.png` (só 256 px, fica borrada ampliada). É um emblema circular preto com aro cromado, contorno vermelho, "PHC" e "AUTO" em vermelho e uma grade de câmbio no centro. Não redesenhe, recorte nem recolora.
+- Logo (nova em 18/11/2026, enviada pelo usuário): marca horizontal "PHC" com a grade de câmbio no lugar do H e "AUTO" embaixo, em degradê. Artes originais em `assets/images/brand/` (`phc-auto-logo-fundo-escuro.webp`: branco→vermelho; `phc-auto-logo-fundo-claro.webp`: preto→vermelho). No app use o componente `BrandLogo` (`src/components/brand-logo.tsx`), que escolhe `logo-dark.png` ou `logo-light.png` pelo tema; recebe só a altura. Ícones (`icon.png`, `android-icon-*`, `notification-icon.png`, `app-mark.png`, `favicon.png`) e `splash-icon.png` são gerados das artes. Não redesenhe nem recolora; para regerar, recorte o fundo das artes originais. Os arquivos `phc-auto-logo.jpeg` e `phc-auto-logo-dark.png` são a logo antiga do site.
 - Paleta, a mesma do site (`../PhcAutoRepasse/frontend/src/styles.css`):
 
 | Token | Claro | Escuro |
@@ -65,7 +65,7 @@ Foto com proporção fixa, marca e modelo, versão, preço em destaque, ano e ci
 
 Siga a sequência da skill `expo-animation`: primeiro decidir se anima, depois o propósito, depois a ferramenta mais simples. Resumo aplicado a este app:
 
-- **Abertura**: a splash nativa mostra a logo parada sobre o fundo escuro da marca. Ao carregar, uma splash em Reanimated assume com a logo na mesma posição e tamanho, faz uma entrada curta (escala com mola e um brilho no aro vermelho) e dissolve para a tela inicial enquanto o conteúdo sobe levemente. Dura cerca de um segundo, nunca segura o app depois que os dados chegaram, e com "reduzir movimento" vira um simples esmaecer. No Expo Go a splash nativa configurada não aparece igual; valide a passagem num build.
+- **Abertura**: a splash nativa mostra a logo parada sobre o fundo escuro da marca. Ao carregar, uma splash em Reanimated assume com a logo na mesma posição e tamanho, faz uma entrada curta (escala com mola; a marca nova não tem aro, então não há onda circular) e dissolve para a tela inicial enquanto o conteúdo sobe levemente. Dura cerca de um segundo, nunca segura o app depois que os dados chegaram, e com "reduzir movimento" vira um simples esmaecer. No Expo Go a splash nativa configurada não aparece igual; valide a passagem num build.
 - **Carregamento**: esqueletos com o formato do conteúdo, não rodinha no meio da tela. Puxar para atualizar usa o controle nativo.
 - **Toque**: resposta de pressão quase imperceptível em cards e botões; háptico leve em favoritar, trocar de aba e concluir ação.
 - **Favoritar**: o coração é o lugar do pequeno momento de prazer.

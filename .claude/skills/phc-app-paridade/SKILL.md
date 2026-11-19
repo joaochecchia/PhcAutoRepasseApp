@@ -54,12 +54,12 @@ Ao concluir uma tela, marque-a aqui (`[x]` pronta, `[~]` existe mas está incomp
 
 | Feito | Funcionalidade | Origem no site | API | No app |
 |---|---|---|---|---|
-| [ ] | Assinar plano: Pix, boleto, crédito, débito | `PlanCheckout`, `CardFields`, `BoletoBox`, `lib/cieloCard.ts` | `plansApi` | pilha |
-| [ ] | Minha assinatura, renovação automática, reembolso | `PlansPage` | `plansApi` | Menu |
-| [ ] | Comprar veículo pelo app | `VehicleCheckout` | `salesApi` | pilha |
-| [ ] | Minhas compras | `PurchasesPage` | `salesApi` | Menu |
+| — | Assinar plano: **fora do app por decisão** (18/11/2026); contratação só no site | `PlanCheckout` | `plansApi` | não existe no app |
+| [~] | Meu plano: plano em vigor, validade, limites e uso, benefícios, avisos; desligar renovação e reembolso | `PlansPage` | `plansApi.mine`, `myAdsApi.quota` | Menu › Meu plano (`/planos`) |
+| [~] | Comprar veículo pelo app | `VehicleCheckout` | `salesApi` | modal `/comprar/[id]` |
+| [~] | Minhas compras | `PurchasesPage` | `salesApi` | Menu (`/minhas-compras`) |
 
-Cartão: no site, tokenização e 3DS da Cielo rodam com scripts do navegador e o número do cartão nunca passa pelo backend da PHC. No app, mantenha essa garantia; o caminho provável é uma WebView. Decida com o usuário antes de construir.
+Cartão (18/11/2026, pedido do usuário): o app troca os dados do cartão pelo token direto na Cielo (Silent Order Post por `fetch`, `src/api/cielo.ts`) e roda a confirmação do banco (script MPI do 3DS) numa WebView com a URL da loja como origem (`src/hooks/use-card-payment.tsx`). O número do cartão nunca passa pelo backend da PHC. Desde 18/11/2026 o cartão no app serve só à compra de veículo (bem físico, permitido nas duas lojas). Planos: ver AGENTS.md › Assinaturas e lojas.
 
 ## Administração
 
@@ -90,7 +90,7 @@ Estado em 16/11/2026. Tudo o que está `[~]` compila e gera o bundle Android. As
 - Conta (16/11/2026): cadastro em `/cadastro` (PF/PJ, CEP, foto, termos; conta nova do Google sem senha, com o verificador PKCE), senha em `/redefinir-senha` (esqueci e, com `origem=perfil`, troca), Minha conta em `/minha-conta` (dados, foto, senha, baixar dados, excluir em `/minha-conta/excluir`), avisos em `/avisos` (contador no Menu e na aba), fila de espera em `/fila-espera`, e a conferência dos dados como primeiro passo do Anunciar. Testado contra o backend local pela API e pela tela na web; redefinição e troca de senha não foram exercitadas até o fim porque mandam e-mail de verdade (Brevo ligado no backend local). Falta conferir no aparelho.
 - Favoritos: na conta, com mescla dos de visitante ao entrar e desfazer em caso de erro; a aba carrega os cards do servidor.
 - Google: funciona no build de desenvolvimento contra produção (`EXPO_PUBLIC_API_URL=https://phcauto.com`), conferido em 17/11/2026. Produção recusa `exp://`, então no Expo Go não fecha; contra o backend local pelo celular também não (o Google não volta para IP da rede local). O cadastro de conta nova vinda do Google ainda não foi exercitado no aparelho.
-- Planos: lista, preços e "Seu plano". A assinatura abre o site: pagamento no app depende dos pontos em aberto 2 e 3 do AGENTS.md.
+- Pagamentos (18/11/2026): assinatura, renovação, reembolso, compra de veículo e Minhas compras no app, com os mesmos endpoints do site. Compila e passa no lint; sem sessão, a disponibilidade de compra respondeu no formato esperado no backend local. Não foi feito pagamento de ponta a ponta (precisa de conta, Cielo sandbox e aparelho), nem a confirmação do banco numa WebView de verdade.
 - Privacidade: sem a parte de cookies do site (o app não usa cookies nem o Pixel).
 - Meus anúncios: completo, com Promoções e Lotes. Editar lote: completo.
 - Detalhes do site trazidos em 17/11/2026: dicas de qualidade do anúncio (`AdQualityTips` → `src/components/ad-quality-tips.tsx`, nas etapas "Dados opcionais" e "Conferência"); troca automática da FIPE equivalente ao mudar zero km/seminovo (`useFipeConditionSync` → `src/hooks/use-fipe-condition-sync.ts`, no Anunciar e na edição; `POST /fipe/consultas/equivalente` e `GET /fipe/referencias/{id}`); dados da empresa do rodapé (`CompanyInfo` → Menu › Sobre, com o WhatsApp de `GET /vendas/atendimento` e o Instagram); e o atalho "Também quer anunciar?" no detalhe do veículo. Compilam e passam no lint; a troca da FIPE não foi exercitada contra o backend com login, e nada disso foi conferido no aparelho.

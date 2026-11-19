@@ -11,7 +11,7 @@ import { AppText } from '@/components/app-text';
 import { useTheme } from '@/hooks/use-theme';
 import { motion, radius, space } from '@/theme';
 
-const logo = require('../../assets/images/phc-auto-logo-disc.png');
+const logo = require('../../assets/images/app-mark.png');
 
 export type InAppNotice = {
   /** Muda a cada aviso: um aviso novo com o anterior na tela troca o conteúdo e reinicia o tempo. */
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
   solid: { borderWidth: StyleSheet.hairlineWidth },
   content: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md, paddingHorizontal: space.lg },
   pressed: { opacity: 0.7 },
-  logo: { width: 40, height: 40, borderRadius: radius.pill },
+  logo: { width: 40, height: 40, borderRadius: radius.sm + 2 },
   text: { flex: 1, gap: 1 },
   header: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
   app: { flex: 1, textTransform: 'uppercase', letterSpacing: 0.4 },

@@ -6,15 +6,20 @@ import { fieldLabel, isKnownField } from '@/utils/field-labels';
 
 import { sessionStore, type AppTokens } from './session-store';
 
+/** Backend de produção: padrão de todo build de loja. */
+export const PRODUCTION_ORIGIN = 'https://phcauto.com';
+
 /**
  * Origem do backend (sem /api/v1).
- * 1. EXPO_PUBLIC_API_URL, quando definido (ex.: https://phcauto.com).
- * 2. Em desenvolvimento, a mesma máquina que serve o Metro, na porta 8080. O celular com Expo Go só alcança esse
- *    endereço se o backend escutar na rede (BACKEND_BIND=0.0.0.0); veja AGENTS.md.
+ * 1. EXPO_PUBLIC_API_URL, quando definido: os perfis preview e production do eas.json e `npm run start:prod`.
+ * 2. Build de loja (sem __DEV__): produção, para um build sem a variável nunca cair num endereço local.
+ * 3. Em desenvolvimento, a mesma máquina que serve o Metro, na porta 8080. O celular só alcança esse endereço se o
+ *    backend escutar na rede (BACKEND_BIND=0.0.0.0); veja AGENTS.md.
  */
 function resolveOrigin(): string {
   const explicit = process.env.EXPO_PUBLIC_API_URL?.trim();
   if (explicit) return explicit.replace(/\/+$/, '');
+  if (!__DEV__) return PRODUCTION_ORIGIN;
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     return `${window.location.protocol}//${window.location.hostname}:8080`;
   }

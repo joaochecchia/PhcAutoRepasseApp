@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import {
   Activity,
@@ -35,6 +34,7 @@ import { apiOrigin } from '@/api/client';
 import { salesApi } from '@/api/sales';
 import type { SessionUser } from '@/api/session-store';
 import { AppText } from '@/components/app-text';
+import { BrandLogo } from '@/components/brand-logo';
 import { Button } from '@/components/button';
 import { showDialog } from '@/components/dialog';
 import { Skeleton } from '@/components/skeleton';
@@ -46,10 +46,6 @@ import { useTheme, type ThemePreference } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
 
 type Item = { icon: LucideIcon; label: string; note?: string; highlight?: boolean; onPress?: () => void };
-
-function soon(label: string) {
-  return () => showDialog({ title: label, message: 'Esta área do site ainda está sendo trazida para o app.' });
-}
 
 function accountItems(unreadNotices: number): Item[] {
   return [
@@ -65,7 +61,7 @@ function accountItems(unreadNotices: number): Item[] {
     },
     { icon: Clock, label: 'Fila de espera', onPress: () => router.push('/fila-espera') },
     { icon: BellRing, label: 'Notificações', onPress: () => router.push('/notificacoes' as Href) },
-    { icon: ShoppingBag, label: 'Minhas compras', onPress: soon('Minhas compras') },
+    { icon: ShoppingBag, label: 'Minhas compras', onPress: () => router.push('/minhas-compras' as Href) },
   ];
 }
 
@@ -73,7 +69,7 @@ const explore: Item[] = [
   { icon: Store, label: 'Lojistas', onPress: () => router.push('/lojistas' as Href) },
   { icon: Warehouse, label: 'Pátio PHC', onPress: () => router.push('/patio' as Href) },
   { icon: Table2, label: 'Tabela FIPE', onPress: () => router.push('/tabela-fipe' as Href) },
-  { icon: CreditCard, label: 'Planos e preços', onPress: () => router.push('/planos' as Href) },
+  { icon: CreditCard, label: 'Meu plano', onPress: () => router.push('/planos' as Href) },
 ];
 
 const admin: Item[] = [
@@ -141,7 +137,7 @@ export function MenuScreen() {
       ) : (
         <>
           <View style={[styles.account, { backgroundColor: colors.subtle }]}>
-            <Image source={require('@/assets/images/phc-auto-logo-disc.png')} style={styles.logo} />
+            <BrandLogo height={30} />
             <View style={styles.flex}>
               <AppText variant="heading">Entre na sua conta</AppText>
               <AppText variant="caption" color="muted">
@@ -378,7 +374,6 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: space.lg, paddingBottom: space.xxxl, gap: space.lg },
   flex: { flex: 1 },
   account: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.lg },
-  logo: { width: 52, height: 52 },
   avatar: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   badge: { paddingHorizontal: space.sm, paddingVertical: 4, borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth },
   group: { gap: space.sm, marginTop: space.sm },

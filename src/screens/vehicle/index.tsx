@@ -11,6 +11,7 @@ import {
   Clock3,
   Fuel,
   FileText,
+  Flag,
   Gauge,
   Gavel,
   Layers,
@@ -72,6 +73,7 @@ import { AdBoostPanel } from '@/screens/admin/ad-boost-panel';
 import { useTheme } from '@/hooks/use-theme';
 import { conditionLabels, formatCents, formatCount, formatKm, formatLocation, formatPrice, formatYears, humanize } from '@/utils/format';
 import { radius, space, touch } from '@/theme';
+import { PurchaseCard } from './purchase-card';
 
 /** Ficha técnica por tipo, como no site. Número de série e registro marítimo identificam o bem e ficam fora. */
 const technicalFields: [key: string, label: string, suffix?: string][] = [
@@ -225,6 +227,10 @@ export function VehicleDetail({ id }: { id: string }) {
                   {detail.aceitaTroca ? <AppText variant="caption" color="muted">Aceita troca</AppText> : null}
                 </View>
 
+                {ownAd ? null : (
+                  <PurchaseCard adId={detail.id} title={`${detail.fabricante} ${detail.modelo}`} signedIn={signedIn} />
+                )}
+
                 <VehiclePromotions
                   sellerId={detail.anuncianteId}
                   anuncioId={detail.id}
@@ -308,6 +314,26 @@ export function VehicleDetail({ id }: { id: string }) {
                       </AppText>
                     </View>
                     <ChevronRight size={20} color={colors.muted} />
+                  </Pressable>
+                )}
+
+                {ownAd ? null : (
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: '/denunciar',
+                        params: { tipo: 'ANUNCIO', alvo: detail.id, assunto: `${detail.fabricante} ${detail.modelo}` },
+                      })
+                    }
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Denunciar anúncio"
+                    accessibilityHint="Avise a equipe sobre golpe, anúncio falso ou conteúdo ofensivo"
+                    style={styles.reportLink}>
+                    <Flag size={14} color={colors.muted} />
+                    <AppText variant="caption" color="muted">
+                      Denunciar anúncio
+                    </AppText>
                   </Pressable>
                 )}
               </>
@@ -733,6 +759,7 @@ const styles = StyleSheet.create({
   history: { flexDirection: 'row', gap: space.sm },
   historyItem: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.md, borderRadius: radius.md, borderWidth: 1, minHeight: 56 },
   seller: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.lg },
+  reportLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, minHeight: 44 },
   announce: {
     flexDirection: 'row',
     alignItems: 'center',

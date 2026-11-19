@@ -89,12 +89,15 @@ function Navigation() {
           <Stack.Screen name="anuncio/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="lote/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="privacidade" options={{ title: 'Privacidade', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
-          <Stack.Screen name="planos" options={{ title: 'Planos e preços', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
-          <Stack.Screen name="assinar" options={{ presentation: 'modal', title: 'Pagamento', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="planos" options={{ title: 'Meu plano', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="comprar/[id]" options={{ presentation: 'modal', title: 'Comprar veículo', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="minhas-compras/index" options={{ title: 'Minhas compras', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="minhas-compras/[id]" options={{ title: 'Compra', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="tabela-fipe" options={{ title: 'Tabela FIPE', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="patio" options={{ title: 'Pátio PHC Auto', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="lojistas" options={{ title: 'Lojistas', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="loja/[slug]" options={{ title: 'Loja', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="denunciar" options={{ presentation: 'modal', title: 'Denunciar', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="entrar" options={{ presentation: 'modal', title: 'Entrar', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="auth" options={{ headerShown: false, animation: 'none' }} />
           <Stack.Screen name="cadastro" options={{ presentation: 'modal', title: 'Criar conta', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
@@ -120,6 +123,7 @@ function Navigation() {
           <Stack.Screen name="admin/promocoes" options={{ title: 'Promoções', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="admin/banners/index" options={{ title: 'Banners', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="admin/banners/[id]" options={{ title: 'Banner', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="admin/denuncias" options={{ title: 'Denúncias', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="admin/conversas/index" options={{ title: 'Conversas', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="admin/conversas/[id]" options={{ title: 'Conversa', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen

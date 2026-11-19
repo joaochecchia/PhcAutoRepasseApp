@@ -4,6 +4,7 @@ import {
   Activity,
   BellRing,
   CarFront,
+  Flag,
   GalleryHorizontal,
   MessagesSquare,
   Rocket,
@@ -34,6 +35,7 @@ const ownerEntries: Entry[] = [
 const staffEntries: Entry[] = [
   { icon: Rocket, title: 'Impulsionados', detail: 'Anúncios nas vagas de destaque', href: '/admin/impulsos' },
   { icon: GalleryHorizontal, title: 'Banners da tela inicial', detail: 'Carrossel do site e do app', href: '/admin/banners' },
+  { icon: Flag, title: 'Denúncias', detail: 'Anúncios e mensagens denunciados', href: '/admin/denuncias' },
   { icon: MessagesSquare, title: 'Conversas', detail: 'Leitura das conversas para moderação', href: '/admin/conversas' },
 ];
 
@@ -63,8 +65,8 @@ function AdminHub() {
       refreshControl={<RefreshControl refreshing={panel.isRefetching} onRefresh={() => void panel.refetch()} tintColor={colors.red} />}>
       <AppText color="muted">
         {owner
-          ? 'Contas e planos, limite de anúncios, promoções, impulsos, banners, conversas e a saúde do sistema.'
-          : 'Impulsos, banners, conversas e a saúde do sistema.'}
+          ? 'Contas e planos, limite de anúncios, promoções, impulsos, banners, denúncias, conversas e a saúde do sistema.'
+          : 'Impulsos, banners, denúncias, conversas e a saúde do sistema.'}
       </AppText>
 
       <AdminSection title="Saúde do sistema">
