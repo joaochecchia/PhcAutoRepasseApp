@@ -58,6 +58,9 @@ export function PrivacyScreen() {
         accessibilityHint="Abre a política no navegador"
         onPress={() => WebBrowser.openBrowserAsync(POLICY_URL)}
       />
+      <AppText variant="caption" color="muted" selectable style={styles.officialUrl}>
+        Endereço oficial: {POLICY_URL}
+      </AppText>
       <Button
         label="Como excluir sua conta"
         variant="ghost"
@@ -157,4 +160,5 @@ const styles = StyleSheet.create({
   card: { padding: space.md, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, gap: 2 },
   skeleton: { gap: space.md },
   mail: { alignSelf: 'flex-start', paddingHorizontal: 0 },
+  officialUrl: { marginTop: -space.md },
 });

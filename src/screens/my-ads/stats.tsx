@@ -24,7 +24,7 @@ const statusLabels: Record<string, string> = {
   RASCUNHO: 'Rascunho',
   RESERVADO: 'Reservado',
   VENDIDO: 'Vendido',
-  ARQUIVADO: 'Arquivado',
+  ARQUIVADO: 'Retirado pela equipe',
 };
 
 /**

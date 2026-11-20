@@ -1,14 +1,15 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { ExternalLink, Flag, MessagesSquare, WifiOff } from 'lucide-react-native';
+import { Ban, ExternalLink, EyeOff, Flag, MessagesSquare, WifiOff } from 'lucide-react-native';
 import { useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { adminReportsApi, type AdminReport, type ReportStatus } from '@/api/reports';
+import { adminReportsApi, type AdminReport, type ReportStatus, type ReportType } from '@/api/reports';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
+import { showDialog } from '@/components/dialog';
 import { Notice } from '@/components/notice';
 import { Skeleton } from '@/components/skeleton';
 import { StateView } from '@/components/state-view';
@@ -17,6 +18,7 @@ import { reportReasonLabel } from '@/data/reports';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
 import { AdminGate } from './admin-gate';
+import { ReportedAccounts, ReportedAds } from './reported';
 import { formatDateTime } from './format';
 import { Segmented, Tag } from './ui';
 
@@ -28,25 +30,43 @@ const filters: { value: Filter; label: string }[] = [
   { value: 'TODAS', label: 'Todas' },
 ];
 const statusLabel: Record<ReportStatus, string> = { ABERTA: 'Aguardando', RESOLVIDA: 'Resolvida', DESCARTADA: 'Descartada' };
+const typeLabel: Record<ReportType, string> = { ANUNCIO: 'Anúncio', MENSAGEM: 'Mensagem', ANUNCIANTE: 'Anunciante' };
 
 /**
- * Fila de denúncias (AdminReports do site), para ADMIN e DONO. A providência usa as outras áreas (abrir a conversa,
- * retirar o anúncio, bloquear a conta); aqui fica o registro de quem analisou, quando e o que decidiu.
+ * Denúncias (AdminReports do site), para ADMIN e DONO, em três visões: Usuários e Anúncios (agrupados, com o total de
+ * denúncias e o botão de desativar a conta ou retirar o anúncio) e a Fila (cada denúncia). Cada providência já resolve
+ * as denúncias abertas daquele alvo com a nota do que foi feito; o DONO reativa contas em Usuários.
  */
+type ReportView = 'contas' | 'anuncios' | 'fila';
+const views: { value: ReportView; label: string }[] = [
+  { value: 'contas', label: 'Usuários' },
+  { value: 'anuncios', label: 'Anúncios' },
+  { value: 'fila', label: 'Fila' },
+];
+
 export function ReportsScreen() {
+  const [view, setView] = useState<ReportView>('contas');
+  const switcher = <Segmented label="Ver denúncias por" options={views} value={view} onChange={setView} />;
   return (
     <AdminGate>
-      <Reports />
+      {view === 'contas' ? (
+        <ReportedAccounts switcher={switcher} />
+      ) : view === 'anuncios' ? (
+        <ReportedAds switcher={switcher} />
+      ) : (
+        <Reports switcher={switcher} />
+      )}
     </AdminGate>
   );
 }
 
-function Reports() {
+/** Fila: cada denúncia, com a decisão e as providências da própria denúncia. */
+function Reports({ switcher }: { switcher: ReactNode }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [status, setStatus] = useState<Filter>('ABERTA');
   const list = useInfiniteQuery({
-    queryKey: ['admin', 'reports', status],
+    queryKey: ['admin', 'reports', 'fila', status],
     queryFn: ({ pageParam, signal }) =>
       adminReportsApi.list({ status: status === 'TODAS' ? undefined : status, pagina: pageParam }, signal),
     initialPageParam: 0,
@@ -64,6 +84,7 @@ function Reports() {
       keyboardShouldPersistTaps="handled"
       ListHeaderComponent={
         <View style={styles.header}>
+          {switcher}
           <Segmented label="Situação" options={filters} value={status} onChange={setStatus} />
           {list.data ? (
             <AppText variant="caption" color="muted">
@@ -94,7 +115,7 @@ function Reports() {
           <StateView
             icon={Flag}
             title={status === 'ABERTA' ? 'Nenhuma denúncia aguardando' : 'Nenhuma denúncia aqui'}
-            message="Denúncias de anúncios e de mensagens feitas no site e no app aparecem nesta fila."
+            message="Denúncias de anúncios, de mensagens e de anunciantes feitas no site e no app aparecem nesta fila."
             compact
           />
         )
@@ -117,13 +138,49 @@ function ReportCard({ report }: { report: AdminReport }) {
       queryClient.invalidateQueries({ queryKey: ['admin', 'reports'] });
     },
   });
+  const act = useMutation({
+    mutationFn: (action: 'retirar' | 'desativar') =>
+      action === 'retirar'
+        ? adminReportsApi.retireAd(report.id, note.trim())
+        : adminReportsApi.deactivateAccount(report.id, note.trim()),
+    onSuccess: () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // A fila e a conta desativada (lista e detalhe de usuários no painel).
+      queryClient.invalidateQueries({ queryKey: ['admin'] });
+    },
+  });
+  const busy = decide.isPending || act.isPending;
   const tone = report.status === 'ABERTA' ? 'bad' : report.status === 'RESOLVIDA' ? 'good' : 'neutral';
+
+  function confirm(action: 'retirar' | 'desativar') {
+    decide.reset();
+    act.reset();
+    showDialog(
+      action === 'retirar'
+        ? {
+            title: 'Retirar este anúncio?',
+            message: 'Ele sai da vitrine e o anunciante não poderá editar nem publicar de novo.',
+            actions: [
+              { label: 'Voltar', kind: 'cancel' },
+              { label: 'Retirar anúncio', kind: 'destructive', onPress: () => act.mutate('retirar') },
+            ],
+          }
+        : {
+            title: `Desativar a conta de ${report.denunciado.nome ?? 'quem foi denunciado'}?`,
+            message: 'A pessoa sai de todas as sessões e os anúncios dela somem da vitrine. Só o DONO reativa, em Usuários.',
+            actions: [
+              { label: 'Voltar', kind: 'cancel' },
+              { label: 'Desativar conta', kind: 'destructive', onPress: () => act.mutate('desativar') },
+            ],
+          },
+    );
+  }
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.row}>
         <AppText variant="bodyStrong" style={styles.flex}>
-          {report.tipo === 'ANUNCIO' ? 'Anúncio' : 'Mensagem'} · {reportReasonLabel[report.motivo]}
+          {typeLabel[report.tipo]} · {reportReasonLabel[report.motivo]}
         </AppText>
         <Tag label={statusLabel[report.status]} tone={tone} />
       </View>
@@ -179,16 +236,16 @@ function ReportCard({ report }: { report: AdminReport }) {
             label="Nota da equipe (opcional)"
             value={note}
             onChangeText={setNote}
-            placeholder="Ex.: anúncio retirado e conta bloqueada"
+            placeholder="Ex.: fotos de outro carro, confirmado pelo telefone"
             maxLength={500}
-            editable={!decide.isPending}
+            editable={!busy}
           />
           <View style={styles.row}>
             <Button
               label="Resolvida"
               onPress={() => decide.mutate('RESOLVIDA')}
               loading={decide.isPending && decide.variables === 'RESOLVIDA'}
-              disabled={decide.isPending}
+              disabled={busy}
               style={styles.flex}
             />
             <Button
@@ -196,11 +253,43 @@ function ReportCard({ report }: { report: AdminReport }) {
               variant="secondary"
               onPress={() => decide.mutate('DESCARTADA')}
               loading={decide.isPending && decide.variables === 'DESCARTADA'}
-              disabled={decide.isPending}
+              disabled={busy}
               style={styles.flex}
             />
           </View>
+          <View style={styles.actions} accessibilityLabel="Providências">
+            {report.tipo === 'ANUNCIO' ? (
+              <Button
+                label="Retirar anúncio"
+                variant="ghost"
+                icon={<EyeOff size={16} color={colors.red} />}
+                onPress={() => confirm('retirar')}
+                loading={act.isPending && act.variables === 'retirar'}
+                disabled={busy}
+                accessibilityHint="Tira o anúncio da vitrine e resolve a denúncia"
+              />
+            ) : null}
+            {report.denunciado.nome ? (
+              <Button
+                label="Desativar conta"
+                variant="ghost"
+                icon={<Ban size={16} color={colors.red} />}
+                onPress={() => confirm('desativar')}
+                loading={act.isPending && act.variables === 'desativar'}
+                disabled={busy}
+                accessibilityHint="Desativa a conta denunciada e resolve a denúncia"
+              />
+            ) : null}
+          </View>
           {decide.isError ? <Notice tone="error" message={decide.error.message} /> : null}
+          {act.isError ? (
+            <Notice
+              tone="error"
+              message={act.error.message}
+              actionLabel="Tentar de novo"
+              onAction={() => act.variables && act.mutate(act.variables)}
+            />
+          ) : null}
         </View>
       ) : (
         <AppText variant="caption" color="muted">
@@ -238,4 +327,5 @@ const styles = StyleSheet.create({
   links: { flexDirection: 'row', flexWrap: 'wrap', gap: space.lg },
   link: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 44 },
   decision: { gap: space.sm },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', columnGap: space.md },
 });

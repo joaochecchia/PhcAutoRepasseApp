@@ -73,7 +73,7 @@ import { AdBoostPanel } from '@/screens/admin/ad-boost-panel';
 import { useTheme } from '@/hooks/use-theme';
 import { conditionLabels, formatCents, formatCount, formatKm, formatLocation, formatPrice, formatYears, humanize } from '@/utils/format';
 import { radius, space, touch } from '@/theme';
-import { BlockSellerLink } from './block-seller';
+import { BlockSellerLink } from '@/components/block-seller';
 import { PurchaseCard } from './purchase-card';
 
 /** Ficha técnica por tipo, como no site. Número de série e registro marítimo identificam o bem e ficam fora. */
@@ -334,6 +334,25 @@ export function VehicleDetail({ id }: { id: string }) {
                     <Flag size={14} color={colors.muted} />
                     <AppText variant="caption" color="muted">
                       Denunciar anúncio
+                    </AppText>
+                  </Pressable>
+                )}
+                {ownAd ? null : (
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: '/denunciar',
+                        params: { tipo: 'ANUNCIANTE', alvo: detail.anuncianteId, assunto: seller.data?.nome ?? 'Anunciante' },
+                      })
+                    }
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Denunciar anunciante"
+                    accessibilityHint="Avise a equipe sobre golpe, perfil falso ou assédio de quem anuncia"
+                    style={styles.reportLink}>
+                    <Flag size={14} color={colors.muted} />
+                    <AppText variant="caption" color="muted">
+                      Denunciar anunciante
                     </AppText>
                   </Pressable>
                 )}

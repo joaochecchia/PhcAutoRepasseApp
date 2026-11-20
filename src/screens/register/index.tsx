@@ -216,7 +216,11 @@ export function Register() {
             <View style={styles.flex}>
               <AppText variant="bodyStrong">Termos de uso e privacidade</AppText>
               <AppText variant="caption" color="muted">
-                Versão vigente: {versions.data?.versaoTermosUso ?? (versions.isError ? 'não carregou' : 'carregando…')}
+                {versions.data
+                  ? `Em vigor: Termos ${versions.data.versaoTermosUso} · Privacidade ${versions.data.versaoPoliticaPrivacidade}`
+                  : versions.isError
+                    ? 'Versões em vigor: não carregou'
+                    : 'Versões em vigor: carregando…'}
               </AppText>
             </View>
           </View>

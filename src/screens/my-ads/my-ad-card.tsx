@@ -15,7 +15,7 @@ export const statusLabels: Record<AdStatus, string> = {
   PAUSADO: 'Pausado',
   RESERVADO: 'Reservado',
   VENDIDO: 'Vendido',
-  ARQUIVADO: 'Arquivado',
+  ARQUIVADO: 'Retirado pela equipe',
 };
 
 const statusTone: Record<AdStatus, { bg: keyof Colors; border: keyof Colors; text: keyof Colors }> = {

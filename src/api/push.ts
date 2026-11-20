@@ -9,14 +9,21 @@ import { secureStorage } from './secure-storage';
 
 /**
  * Tipos de aviso que o backend manda por push (AvisosUsuario.Tipo) e SISTEMA, os alertas de serviços fora do ar.
- * O servidor só manda SISTEMA para contas ADMIN e DONO, conferindo o papel a cada envio.
+ * O servidor só manda SISTEMA e DENUNCIA (denúncia nova) para contas ADMIN e DONO.
  */
-export type PushKind = 'CHAT' | 'FILA_ESPERA' | 'SISTEMA';
+export type PushKind = 'CHAT' | 'FILA_ESPERA' | 'DENUNCIA' | 'SISTEMA';
 export type PushPrefs = Record<PushKind, boolean>;
 
 export const pushKinds: { kind: PushKind; label: string; hint: string; channel: string; staffOnly?: boolean }[] = [
   { kind: 'CHAT', label: 'Mensagens', hint: 'Quando um comprador ou vendedor mandar mensagem numa conversa sua sobre um anúncio.', channel: 'mensagens' },
   { kind: 'FILA_ESPERA', label: 'Fila de espera', hint: 'Quando for anunciado um veículo que combina com um pedido seu na fila de espera.', channel: 'fila-espera' },
+  {
+    kind: 'DENUNCIA',
+    label: 'Denúncias',
+    hint: 'Quando alguém denunciar um anúncio, uma mensagem ou um anunciante, para a equipe analisar logo.',
+    channel: 'denuncias',
+    staffOnly: true,
+  },
   {
     kind: 'SISTEMA',
     label: 'Alertas do sistema',
@@ -40,7 +47,7 @@ export type PushStatus = {
 };
 
 const KEYS = { token: 'phc.push.token', prefs: 'phc.push.prefs' } as const;
-const defaultPrefs: PushPrefs = { CHAT: true, FILA_ESPERA: true, SISTEMA: true };
+const defaultPrefs: PushPrefs = { CHAT: true, FILA_ESPERA: true, DENUNCIA: true, SISTEMA: true };
 
 export const pushApi = {
   register: (body: { token: string; plataforma: 'ios' | 'android'; tipos: PushKind[] }) =>

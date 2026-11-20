@@ -84,16 +84,17 @@ jurídico), **Risco** (depende do revisor), **Não verificado** (precisa de apar
 
 ## 3. Termos de Uso e Política de Privacidade
 
-**Situação real:**
+**Situação real (19/11/2026):**
 
-- **Versão 1.1:** é a que está em vigor (`TERMOS_USO_VERSAO_ATUAL` e `POLITICA_PRIVACIDADE_VERSAO_ATUAL`) e a que o cadastro grava no aceite. É um PDF que é minuta jurídica, com anexo interno e referências que não batem com a operação.
-- **Histórico preservado:** o PDF não foi alterado, para preservar o histórico de aceites.
+- **Política de Privacidade 2.0 em vigor, como página web:** `https://phcauto.com/politica-de-privacidade` (`POLITICA_PRIVACIDADE_VERSAO_ATUAL=2.0`, texto em `../PhcAutoRepasse/frontend/src/legal/documents.ts`).
+  - Documento oficial, com versão, data de vigência, controlador, endereço oficial e sumário.
+  - Descreve tudo o que o site e o app coletam: CPF/CNPJ, cadastro, anúncios, mensagens do chat, pagamentos (Cielo), localização aproximada, câmera, fotos, arquivos, token push (Expo, Google, Apple), login com Google e Apple, registros de acesso e cookies do site. Também diz o que não coletamos (biometria, contatos, microfone, identificador de publicidade, rastreamento).
+  - O app mostra o endereço oficial em Menu › Privacidade; o cadastro mostra as duas versões em vigor.
+  - A Política 1.1 (PDF) fica consultável em `?versao=1.1`, para o histórico de aceites.
+- **Termos de Uso 2.0 em vigor, como página web:** `https://phcauto.com/termos-de-uso` (`TERMOS_USO_VERSAO_ATUAL=2.0`), no mesmo formato oficial da Política. Inclui denúncias analisadas em até 24 horas e o EULA padrão da Apple (App Store 1.2 e 5.1.1). O PDF 1.1 fica em `?versao=1.1`.
 
-**Corrigido:**
+**Corrigido antes:**
 
-- **Minuta 2.0:** Termos e Política **separados**, em HTML, descrevendo só o que o sistema faz (`../PhcAutoRepasse/frontend/src/legal/documents.ts`).
-  - Para revisão, abrir com `?versao=2.0`; a página avisa que não está em vigor e lista as pendências.
-  - Pendências e roteiro de aprovação: `../PhcAutoRepasse/backend/docs/lgpd/termos-e-politica-v2.md`.
 - **Rotas públicas:** `/termos-de-uso` e `/politica-de-privacidade` mostram a versão que o backend declara em vigor. Se apontarem para uma minuta, a página mostra o erro em vez de apresentá-la como aprovada.
 - **Links:** todos os links do app e do site (cadastro, rodapé, Privacidade) passaram a usar essas páginas.
 - **Lista de empresas e prazos** (`/compliance/privacidade`):
@@ -102,18 +103,12 @@ jurídico), **Risco** (depende do revisor), **Não verificado** (precisa de apar
   - Cielo também na compra de veículos;
   - token da Apple e prazo real de 190 dias do registro de acesso.
 
-**Decisão (jurídico e produto), antes de publicar a 2.0:**
+**Ainda em aberto:**
 
-- CNPJ, CEP e encarregado de dados.
-- Bases legais.
-- Transferência internacional.
-- Novo aceite de quem já tem conta (não implementado).
-- Prazo das denúncias.
-- Devolução por boleto.
-- Regras da compra de veículo.
-- EULA da Apple.
+- Política: completa (CNPJ 07.593.679/0001-19 e encarregado Paulo Henrrique Campos incluídos em 19/11/2026, antes da publicação).
+- Termos: CEP da sede fora do texto; quem aceitou a 1.1 não é chamado a aceitar a 2.0 (o item 2 dos Termos vale pelo aviso prévio e pelo uso continuado).
 
-**Risco (Google):** enquanto a 1.1 estiver em vigor, `/politica-de-privacidade` leva a um PDF. A Google pede a política numa página web, não em PDF; a exigência só fica atendida quando a 2.0 for aprovada e publicada. Não publique a minuta como aprovada.
+**Para as lojas:** informe `https://phcauto.com/politica-de-privacidade` como URL da política na App Store Connect e na Google Play Console. A política só aparece como página depois do deploy do site e do backend com a 2.0.
 
 ## 4. Planos (Apple 3.1.1 / 3.1.3(b))
 

@@ -260,7 +260,8 @@ export type WaitlistOrder = Omit<WaitlistRequest, 'cidade' | 'uf' | 'alcance'> &
 
 export type AccountNotice = {
   id: string;
-  tipo: 'FILA_ESPERA' | 'CHAT';
+  /** DENUNCIA: denúncia nova, só para ADMIN e DONO. */
+  tipo: 'FILA_ESPERA' | 'CHAT' | 'DENUNCIA';
   titulo: string;
   detalhe: string | null;
   /** Caminho interno do site (/anuncio/<id> ou /lote/<id>), que é o mesmo no app. */

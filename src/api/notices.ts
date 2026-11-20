@@ -12,12 +12,17 @@ export const noticesApi = {
 };
 
 /**
- * O link do aviso é um caminho do site; no app só seguem os que existem como tela (anúncio, lote, conversa e, nos
- * alertas do sistema, a observabilidade).
+ * O link do aviso é um caminho do site; no app só seguem os que existem como tela (anúncio, lote, conversa e, para a
+ * equipe, a observabilidade e as denúncias).
  */
-type NoticeRoute = `/anuncio/${string}` | `/lote/${string}` | `/mensagens/${string}` | '/admin/observabilidade';
+type NoticeRoute =
+  | `/anuncio/${string}`
+  | `/lote/${string}`
+  | `/mensagens/${string}`
+  | '/admin/observabilidade'
+  | '/admin/denuncias';
 export function noticeRoute(link: string): NoticeRoute | null {
-  if (link === '/admin/observabilidade') return link;
+  if (link === '/admin/observabilidade' || link === '/admin/denuncias') return link;
   const match = /^\/(anuncio|lote|mensagens)\/([A-Za-z0-9-]{1,64})$/.exec(link);
   return match ? (`/${match[1]}/${match[2]}` as NoticeRoute) : null;
 }

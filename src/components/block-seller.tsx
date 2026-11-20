@@ -12,9 +12,10 @@ import { space, touch } from '@/theme';
 import { blockControl } from './block-state';
 
 /**
- * Bloquear o anunciante direto pelo anúncio, antes de qualquer conversa (App Store 1.2 e Google Play, conteúdo
- * gerado por usuários). Bloqueado, nenhum dos dois manda mensagem ao outro; o desbloqueio fica aqui mesmo. O controle
- * fica sempre visível: carregando, sem ação; com erro, "Tentar novamente". Só para quem entrou e não é o dono.
+ * Bloquear o anunciante direto pelo anúncio ou pela página da loja, antes de qualquer conversa (App Store 1.2 e Google
+ * Play, conteúdo gerado por usuários). Bloqueado, nenhum dos dois manda mensagem ao outro; o desbloqueio fica aqui
+ * mesmo. O controle fica sempre visível: carregando, sem ação; com erro, "Tentar novamente". Só para quem entrou e não
+ * é o dono.
  */
 export function BlockSellerLink({ sellerId, sellerName }: { sellerId: string; sellerName: string }) {
   const { colors } = useTheme();

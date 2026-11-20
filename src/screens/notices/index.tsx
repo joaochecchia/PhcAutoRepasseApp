@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { Bell, BellRing, MessagesSquare, WifiOff } from 'lucide-react-native';
+import { Bell, BellRing, Flag, MessagesSquare, WifiOff } from 'lucide-react-native';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import type { AccountNotice, AccountNoticesPage } from '@/api/contracts';
@@ -118,7 +118,7 @@ export function NoticesScreen() {
       }
       ItemSeparatorComponent={() => <View style={{ height: space.sm }} />}
       renderItem={({ item }) => {
-        const Icon = item.tipo === 'CHAT' ? MessagesSquare : BellRing;
+        const Icon = item.tipo === 'CHAT' ? MessagesSquare : item.tipo === 'DENUNCIA' ? Flag : BellRing;
         const fresh = !item.lidoEm;
         return (
           <Pressable

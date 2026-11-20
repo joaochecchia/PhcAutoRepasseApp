@@ -1,20 +1,25 @@
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, Store, WifiOff } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { router } from 'expo-router';
+import { Flag, MapPin, Store, WifiOff } from 'lucide-react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { fetchStorePromotions, fetchStoreProfile } from '@/api/ads';
 import { AppText } from '@/components/app-text';
+import { BlockSellerLink } from '@/components/block-seller';
 import { FilteredAdList } from '@/components/filtered-ad-list';
 import { PromotionCard } from '@/components/promotions';
 import { Skeleton } from '@/components/skeleton';
 import { StateView } from '@/components/state-view';
+import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
-import { space } from '@/theme';
+import { space, touch } from '@/theme';
 import { StoreAvatar } from './index';
 
 /** Página da loja: perfil, promoções no ar e os veículos publicados, com filtros (StoresPage do site, com o id). */
 export function StoreScreen({ slug }: { slug: string }) {
   const { colors } = useTheme();
+  const session = useSession();
+  const signedIn = session.status === 'authenticated';
   const profile = useQuery({
     queryKey: ['store', slug],
     queryFn: async ({ signal }) => {
@@ -24,6 +29,7 @@ export function StoreScreen({ slug }: { slug: string }) {
     },
   });
   const store = profile.data;
+  const ownStore = session.status === 'authenticated' && store?.id === session.user.usuarioId;
   const promotions = useQuery({
     queryKey: ['store-promotions', store?.id, null, null],
     queryFn: ({ signal }) => fetchStorePromotions(store!.id, undefined, signal),
@@ -88,6 +94,25 @@ export function StoreScreen({ slug }: { slug: string }) {
               </View>
             </View>
           )}
+          {store && !ownStore ? (
+            <View style={styles.safety}>
+              <Pressable
+                onPress={() =>
+                  router.push({ pathname: '/denunciar', params: { tipo: 'ANUNCIANTE', alvo: store.id, assunto: store.nome } })
+                }
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Denunciar loja"
+                accessibilityHint="Avise a equipe sobre golpe, perfil falso ou assédio desta loja"
+                style={styles.reportLink}>
+                <Flag size={14} color={colors.muted} />
+                <AppText variant="caption" color="muted">
+                  Denunciar loja
+                </AppText>
+              </Pressable>
+              {signedIn ? <BlockSellerLink sellerId={store.id} sellerName={store.nome} /> : null}
+            </View>
+          ) : null}
           {promotions.data?.map((promotion) => (
             <PromotionCard key={promotion.id} promotion={promotion} scopeNote />
           ))}
@@ -102,4 +127,6 @@ const styles = StyleSheet.create({
   identity: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   place: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   skeletonText: { gap: space.sm },
+  safety: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: space.lg },
+  reportLink: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: touch },
 });

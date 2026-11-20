@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { adminApi } from '@/api/admin';
 import { AppText } from '@/components/app-text';
+import { useOpenReports } from '@/hooks/use-open-reports';
 import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
@@ -35,7 +36,6 @@ const ownerEntries: Entry[] = [
 const staffEntries: Entry[] = [
   { icon: Rocket, title: 'Impulsionados', detail: 'Anúncios nas vagas de destaque', href: '/admin/impulsos' },
   { icon: GalleryHorizontal, title: 'Banners da tela inicial', detail: 'Carrossel do site e do app', href: '/admin/banners' },
-  { icon: Flag, title: 'Denúncias', detail: 'Anúncios e mensagens denunciados', href: '/admin/denuncias' },
   { icon: MessagesSquare, title: 'Conversas', detail: 'Leitura das conversas para moderação', href: '/admin/conversas' },
 ];
 
@@ -57,12 +57,22 @@ function AdminHub() {
   const activeAlerts = panel.data?.alertas?.ativos ?? [];
   const servicesDown = panel.data?.servicos.filter((service) => service.status !== 'UP').length ?? 0;
   const problems = Math.max(activeAlerts.length, servicesDown);
+  const openReports = useOpenReports(true);
 
   return (
     <ScrollView
       style={{ backgroundColor: colors.bg }}
       contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xxl }]}
-      refreshControl={<RefreshControl refreshing={panel.isRefetching} onRefresh={() => void panel.refetch()} tintColor={colors.red} />}>
+      refreshControl={
+        <RefreshControl
+          refreshing={panel.isRefetching}
+          onRefresh={() => {
+            void panel.refetch();
+            void openReports.refetch();
+          }}
+          tintColor={colors.red}
+        />
+      }>
       <AppText color="muted">
         {owner
           ? 'Contas e planos, limite de anúncios, promoções, impulsos, banners, denúncias, conversas e a saúde do sistema.'
@@ -97,6 +107,33 @@ function AdminHub() {
         />
       </AdminSection>
 
+      <AdminSection title="Moderação">
+        <AdminRow
+          icon={Flag}
+          iconColor={openReports.data ? 'red' : 'text'}
+          title="Denúncias"
+          detail={
+            openReports.isPending
+              ? 'Contando as denúncias…'
+              : openReports.isError
+                ? 'Usuários, anúncios e a fila de denúncias'
+                : openReports.data
+                  ? `${openReports.data === 1 ? '1 denúncia aguardando' : `${openReports.data} denúncias aguardando`} análise`
+                  : 'Nenhuma denúncia aguardando'
+          }
+          trailing={
+            openReports.data ? (
+              <View style={[styles.count, { backgroundColor: colors.red }]}>
+                <AppText variant="label" color="onRed">
+                  {openReports.data > 99 ? '99+' : openReports.data}
+                </AppText>
+              </View>
+            ) : null
+          }
+          onPress={() => router.push('/admin/denuncias')}
+        />
+      </AdminSection>
+
       {owner ? <Entries title="Dono" entries={ownerEntries} /> : null}
       <Entries title="Administração" entries={staffEntries} />
     </ScrollView>
@@ -119,4 +156,5 @@ function Entries({ title, entries }: { title: string; entries: Entry[] }) {
 const styles = StyleSheet.create({
   content: { padding: space.lg, gap: space.xl },
   dot: { width: 10, height: 10, borderRadius: radius.pill },
+  count: { minWidth: 24, paddingHorizontal: space.sm, paddingVertical: 2, borderRadius: radius.pill, alignItems: 'center' },
 });

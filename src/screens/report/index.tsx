@@ -18,17 +18,20 @@ import { useTheme } from '@/hooks/use-theme';
 import { radius, space, touch } from '@/theme';
 
 const MAX_DETAIL = 500;
+const subjectLabel: Record<ReportType, string> = { ANUNCIO: 'Anúncio', MENSAGEM: 'Mensagem', ANUNCIANTE: 'Anunciante' };
 
 /**
- * Denúncia de anúncio ou de mensagem do chat (folha modal). A equipe analisa no painel; a outra pessoa não sabe quem
- * denunciou. Parâmetros: tipo (ANUNCIO | MENSAGEM), alvo (id do anúncio ou da mensagem) e assunto (o que a pessoa vê).
+ * Denúncia de anúncio, de mensagem do chat ou de quem anuncia (folha modal). A equipe analisa no painel; a outra pessoa
+ * não sabe quem denunciou. Parâmetros: tipo (ANUNCIO | MENSAGEM | ANUNCIANTE), alvo (id do anúncio, da mensagem ou da
+ * conta) e assunto (o que a pessoa vê).
  */
 export function ReportScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const signedIn = useSession().status === 'authenticated';
   const params = useLocalSearchParams<{ tipo?: string; alvo?: string; assunto?: string }>();
-  const tipo: ReportType | null = params.tipo === 'ANUNCIO' || params.tipo === 'MENSAGEM' ? params.tipo : null;
+  const tipo: ReportType | null =
+    params.tipo === 'ANUNCIO' || params.tipo === 'MENSAGEM' || params.tipo === 'ANUNCIANTE' ? params.tipo : null;
   const [motivo, setMotivo] = useState<ReportReason | null>(null);
   const [detalhe, setDetalhe] = useState('');
   const send = useMutation({
@@ -40,7 +43,7 @@ export function ReportScreen() {
   if (!tipo || !params.alvo)
     return (
       <View style={[styles.flex, { backgroundColor: colors.bg }]}>
-        <StateView icon={Flag} title="Nada para denunciar" message="Abra a denúncia pelo anúncio ou pela conversa." />
+        <StateView icon={Flag} title="Nada para denunciar" message="Abra a denúncia pelo anúncio, pela loja ou pela conversa." />
       </View>
     );
   if (!signedIn)
@@ -67,7 +70,9 @@ export function ReportScreen() {
           {send.data.mensagem}{' '}
           {tipo === 'MENSAGEM'
             ? 'Se a pessoa continuar incomodando, bloqueie pelo menu da conversa.'
-            : 'Enquanto isso, não faça pagamentos antecipados nem envie dados pessoais a quem anuncia.'}
+            : tipo === 'ANUNCIANTE'
+              ? 'Se não quiser mais contato, toque em Bloquear no anúncio ou na página da loja.'
+              : 'Enquanto isso, não faça pagamentos antecipados nem envie dados pessoais a quem anuncia.'}
         </AppText>
         <Button label="Fechar" onPress={() => router.back()} style={styles.full} />
       </View>
@@ -83,7 +88,7 @@ export function ReportScreen() {
         {params.assunto ? (
           <View style={[styles.subject, { backgroundColor: colors.subtle }]}>
             <AppText variant="caption" color="muted">
-              {tipo === 'ANUNCIO' ? 'Anúncio' : 'Mensagem'}
+              {subjectLabel[tipo]}
             </AppText>
             <AppText variant="bodyStrong" numberOfLines={4}>
               {params.assunto}
