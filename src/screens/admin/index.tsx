@@ -6,6 +6,7 @@ import {
   CarFront,
   Flag,
   GalleryHorizontal,
+  ImageUp,
   MessagesSquare,
   Rocket,
   TicketPercent,
@@ -18,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { adminApi } from '@/api/admin';
 import { AppText } from '@/components/app-text';
 import { useOpenReports } from '@/hooks/use-open-reports';
+import { usePhotosInReview } from '@/hooks/use-photos-in-review';
 import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
@@ -58,6 +60,7 @@ function AdminHub() {
   const servicesDown = panel.data?.servicos.filter((service) => service.status !== 'UP').length ?? 0;
   const problems = Math.max(activeAlerts.length, servicesDown);
   const openReports = useOpenReports(true);
+  const photosInReview = usePhotosInReview(true);
 
   return (
     <ScrollView
@@ -69,14 +72,15 @@ function AdminHub() {
           onRefresh={() => {
             void panel.refetch();
             void openReports.refetch();
+            void photosInReview.refetch();
           }}
           tintColor={colors.red}
         />
       }>
       <AppText color="muted">
         {owner
-          ? 'Contas e planos, limite de anúncios, promoções, impulsos, banners, denúncias, conversas e a saúde do sistema.'
-          : 'Impulsos, banners, denúncias, conversas e a saúde do sistema.'}
+          ? 'Contas e planos, limite de anúncios, promoções, impulsos, banners, denúncias, fotos em revisão, conversas e a saúde do sistema.'
+          : 'Impulsos, banners, denúncias, fotos em revisão, conversas e a saúde do sistema.'}
       </AppText>
 
       <AdminSection title="Saúde do sistema">
@@ -121,22 +125,42 @@ function AdminHub() {
                   ? `${openReports.data === 1 ? '1 denúncia aguardando' : `${openReports.data} denúncias aguardando`} análise`
                   : 'Nenhuma denúncia aguardando'
           }
-          trailing={
-            openReports.data ? (
-              <View style={[styles.count, { backgroundColor: colors.red }]}>
-                <AppText variant="label" color="onRed">
-                  {openReports.data > 99 ? '99+' : openReports.data}
-                </AppText>
-              </View>
-            ) : null
-          }
+          trailing={openReports.data ? <CountBadge value={openReports.data} /> : null}
           onPress={() => router.push('/admin/denuncias')}
+        />
+        <Divider />
+        <AdminRow
+          icon={ImageUp}
+          iconColor={photosInReview.data ? 'red' : 'text'}
+          title="Fotos em revisão"
+          detail={
+            photosInReview.isPending
+              ? 'Contando as fotos…'
+              : photosInReview.isError
+                ? 'Fotos que a análise automática deixou para a equipe'
+                : photosInReview.data
+                  ? `${photosInReview.data === 1 ? '1 foto aguardando' : `${photosInReview.data} fotos aguardando`} decisão`
+                  : 'Nenhuma foto aguardando'
+          }
+          trailing={photosInReview.data ? <CountBadge value={photosInReview.data} /> : null}
+          onPress={() => router.push('/admin/fotos')}
         />
       </AdminSection>
 
       {owner ? <Entries title="Dono" entries={ownerEntries} /> : null}
       <Entries title="Administração" entries={staffEntries} />
     </ScrollView>
+  );
+}
+
+function CountBadge({ value }: { value: number }) {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.count, { backgroundColor: colors.red }]}>
+      <AppText variant="label" color="onRed">
+        {value > 99 ? '99+' : value}
+      </AppText>
+    </View>
   );
 }
 

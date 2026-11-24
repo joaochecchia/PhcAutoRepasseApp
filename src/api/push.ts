@@ -11,12 +11,14 @@ import { secureStorage } from './secure-storage';
  * Tipos de aviso que o backend manda por push (AvisosUsuario.Tipo) e SISTEMA, os alertas de serviços fora do ar.
  * O servidor só manda SISTEMA e DENUNCIA (denúncia nova) para contas ADMIN e DONO.
  */
-export type PushKind = 'CHAT' | 'FILA_ESPERA' | 'DENUNCIA' | 'SISTEMA';
+export type PushKind = 'CHAT' | 'FILA_ESPERA' | 'MODERACAO' | 'DENUNCIA' | 'SISTEMA';
 export type PushPrefs = Record<PushKind, boolean>;
 
 export const pushKinds: { kind: PushKind; label: string; hint: string; channel: string; staffOnly?: boolean }[] = [
   { kind: 'CHAT', label: 'Mensagens', hint: 'Quando um comprador ou vendedor mandar mensagem numa conversa sua sobre um anúncio.', channel: 'mensagens' },
   { kind: 'FILA_ESPERA', label: 'Fila de espera', hint: 'Quando for anunciado um veículo que combina com um pedido seu na fila de espera.', channel: 'fila-espera' },
+  // O backend manda este tipo pelo canal "avisos" (sem canal próprio), criado à parte em ensurePushChannels.
+  { kind: 'MODERACAO', label: 'Fotos recusadas', hint: 'Quando uma foto do seu anúncio ou lote for recusada na análise, com o motivo.', channel: 'avisos' },
   {
     kind: 'DENUNCIA',
     label: 'Denúncias',
@@ -47,7 +49,7 @@ export type PushStatus = {
 };
 
 const KEYS = { token: 'phc.push.token', prefs: 'phc.push.prefs' } as const;
-const defaultPrefs: PushPrefs = { CHAT: true, FILA_ESPERA: true, DENUNCIA: true, SISTEMA: true };
+const defaultPrefs: PushPrefs = { CHAT: true, FILA_ESPERA: true, MODERACAO: true, DENUNCIA: true, SISTEMA: true };
 
 export const pushApi = {
   register: (body: { token: string; plataforma: 'ios' | 'android'; tipos: PushKind[] }) =>
@@ -95,7 +97,7 @@ export async function pushStatus(): Promise<PushStatus> {
 export async function ensurePushChannels(staff = false) {
   if (Platform.OS !== 'android') return;
   await Promise.all([
-    ...pushKinds.filter((item) => staff || !item.staffOnly).map((item) =>
+    ...pushKinds.filter((item) => (staff || !item.staffOnly) && item.channel !== 'avisos').map((item) =>
       Notifications.setNotificationChannelAsync(item.channel, {
         name: item.label,
         description: item.hint,
@@ -107,7 +109,7 @@ export async function ensurePushChannels(staff = false) {
     ),
     Notifications.setNotificationChannelAsync('avisos', {
       name: 'Outros avisos da conta',
-      description: 'Avisos da sua conta que não são de mensagens nem da fila de espera. Nunca usado para propaganda.',
+      description: 'Fotos recusadas e outros avisos da conta que não são de mensagens nem da fila de espera. Nunca usado para propaganda.',
       // eslint-disable-next-line import/namespace
       importance: Notifications.AndroidImportance.DEFAULT,
     }),

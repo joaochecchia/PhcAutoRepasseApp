@@ -68,6 +68,7 @@ import { VehiclePromotions } from '@/components/promotions';
 import { Skeleton } from '@/components/skeleton';
 import { StateView } from '@/components/state-view';
 import { MediaGallery } from '@/components/media-gallery';
+import { inReview, moderationRefetch, shownToBuyers } from '@/components/photo-moderation';
 import { isStaff, useSession } from '@/hooks/use-session';
 import { AdBoostPanel } from '@/screens/admin/ad-boost-panel';
 import { useTheme } from '@/hooks/use-theme';
@@ -111,8 +112,16 @@ export function VehicleDetail({ id }: { id: string }) {
   const galleryHeight = Math.round(width * 0.78);
   const scrollY = useSharedValue(0);
 
+  const session = useSession();
+  const signedIn = session.status === 'authenticated';
   const ad = useQuery({ queryKey: ['ad', id], queryFn: ({ signal }) => fetchAd(id, signal) });
-  const photos = useQuery({ queryKey: ['ad-photos', id], queryFn: ({ signal }) => fetchAdPhotos(id, signal) });
+  // Com sessão, o dono (e a equipe) recebe também as fotos em análise e as recusadas, com a situação da moderação.
+  const photos = useQuery({
+    queryKey: ['ad-photos', id, signedIn],
+    queryFn: ({ signal }) => fetchAdPhotos(id, signal, signedIn),
+    enabled: session.status !== 'loading',
+    refetchInterval: (query) => moderationRefetch(query.state.data),
+  });
   const seller = useQuery({
     queryKey: ['profile', ad.data?.anuncianteId],
     queryFn: ({ signal }) => fetchPublicProfile(ad.data!.anuncianteId, signal),
@@ -120,8 +129,6 @@ export function VehicleDetail({ id }: { id: string }) {
   });
   // Vídeo e laudo são extras: sem eles (ou com falha), a página segue só com as fotos.
   const media = useQuery({ queryKey: ['ad-media-public', id], queryFn: ({ signal }) => fetchAdMedia(id, signal) });
-  const session = useSession();
-  const signedIn = session.status === 'authenticated';
   const ownAd = session.status === 'authenticated' && ad.data?.anuncianteId === session.user.usuarioId;
   const staff = session.status === 'authenticated' && isStaff(session.user.papel);
   const loaded = Boolean(ad.data);
@@ -155,7 +162,11 @@ export function VehicleDetail({ id }: { id: string }) {
   }));
 
   const detail = ad.data;
-  const favoriteShape = detail ? toSearchAd(detail, photos.data?.[0]) : null;
+  const favoriteShape = detail
+    ? toSearchAd(detail, photos.data?.filter(shownToBuyers).sort((a, b) => a.posicao - b.posicao)[0])
+    : null;
+  const reviewingPhotos = photos.data?.filter((photo) => shownToBuyers(photo) && inReview(photo)).length ?? 0;
+  const rejectedPhotos = photos.data?.filter((photo) => photo.statusModeracao === 'REJEITADA').length ?? 0;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
@@ -187,6 +198,26 @@ export function VehicleDetail({ id }: { id: string }) {
               <DetailSkeleton />
             ) : (
               <>
+                {ownAd && (reviewingPhotos > 0 || rejectedPhotos > 0) ? (
+                  <Notice
+                    tone={rejectedPhotos ? 'error' : 'info'}
+                    title={rejectedPhotos ? (rejectedPhotos === 1 ? '1 foto recusada' : `${rejectedPhotos} fotos recusadas`) : 'Fotos em análise'}
+                    message={[
+                      reviewingPhotos
+                        ? `${reviewingPhotos === 1 ? '1 foto está em análise e ainda não aparece' : `${reviewingPhotos} fotos estão em análise e ainda não aparecem`} para os compradores.`
+                        : '',
+                      rejectedPhotos
+                        ? `${rejectedPhotos === 1 ? 'A foto recusada não aparece' : 'As fotos recusadas não aparecem'} no anúncio.`
+                        : '',
+                    ].filter(Boolean).join(' ')}
+                    actionLabel={rejectedPhotos ? 'Ver o motivo e trocar' : undefined}
+                    onAction={() =>
+                      detail.loteId
+                        ? router.push({ pathname: '/meus-anuncios/lote/[id]', params: { id: detail.loteId } })
+                        : router.push({ pathname: '/meus-anuncios/[id]', params: { id: detail.id } })
+                    }
+                  />
+                ) : null}
                 {detail.loteId ? (
                   <Pressable
                     onPress={() => router.push({ pathname: '/lote/[id]', params: { id: detail.loteId! } })}

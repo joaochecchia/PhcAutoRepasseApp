@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { Bell, BellRing, Flag, MessagesSquare, WifiOff } from 'lucide-react-native';
+import { Bell, BellRing, Flag, ImageOff, MessagesSquare, WifiOff } from 'lucide-react-native';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import type { AccountNotice, AccountNoticesPage } from '@/api/contracts';
@@ -18,7 +18,10 @@ import { radius, space } from '@/theme';
 const when = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-/** Avisos da conta: carro novo da fila de espera e mensagens. Tocar marca como lido e abre o anúncio ou o lote. */
+/**
+ * Avisos da conta: carro novo da fila de espera, mensagens e fotos recusadas. Tocar marca como lido e abre o anúncio,
+ * o lote ou a edição com a foto recusada.
+ */
 export function NoticesScreen() {
   const { colors } = useTheme();
   const queryClient = useQueryClient();
@@ -118,7 +121,8 @@ export function NoticesScreen() {
       }
       ItemSeparatorComponent={() => <View style={{ height: space.sm }} />}
       renderItem={({ item }) => {
-        const Icon = item.tipo === 'CHAT' ? MessagesSquare : item.tipo === 'DENUNCIA' ? Flag : BellRing;
+        const Icon =
+          item.tipo === 'CHAT' ? MessagesSquare : item.tipo === 'DENUNCIA' ? Flag : item.tipo === 'MODERACAO' ? ImageOff : BellRing;
         const fresh = !item.lidoEm;
         return (
           <Pressable

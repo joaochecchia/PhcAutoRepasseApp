@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { BadgeCheck, CarFront, Layers, TicketPercent, TrendingDown } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 
-import { mediaUrl } from '@/api/client';
+import { mediaUrl, privateImageSource } from '@/api/client';
 import type { SearchAd } from '@/api/contracts';
 import { AppText } from '@/components/app-text';
 import { FavoriteButton } from '@/components/favorite-button';
@@ -45,7 +45,21 @@ function Photo({ ad, style }: { ad: SearchAd; style: object }) {
 }
 
 /** Foto do veículo com proporção fixa; sem foto, mostra o ícone de carro. */
-export function VehiclePhoto({ path, recyclingKey, style }: { path: string | null | undefined; recyclingKey: string; style: object }) {
+/**
+ * Foto do card. Com `owner` (Meus anúncios), a capa pode ser uma foto ainda em análise ou de rascunho, cujo arquivo
+ * pede a sessão; fica só na memória para a versão anterior ao borrão da placa não ficar guardada no aparelho.
+ */
+export function VehiclePhoto({
+  path,
+  recyclingKey,
+  style,
+  owner,
+}: {
+  path: string | null | undefined;
+  recyclingKey: string;
+  style: object;
+  owner?: boolean;
+}) {
   const { colors } = useTheme();
   const uri = mediaUrl(path);
   if (!uri) {
@@ -57,7 +71,8 @@ export function VehiclePhoto({ path, recyclingKey, style }: { path: string | nul
   }
   return (
     <Image
-      source={{ uri }}
+      source={owner ? privateImageSource(path, 'dono') : { uri }}
+      cachePolicy={owner ? 'memory' : undefined}
       style={[style, { backgroundColor: colors.subtle }]}
       contentFit="cover"
       transition={180}

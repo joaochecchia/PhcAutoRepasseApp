@@ -68,8 +68,9 @@ export function fetchAd(id: string, signal?: AbortSignal) {
   return getJson<AdDetail>(`/anuncios/${encodeURIComponent(id)}`, undefined, { signal });
 }
 
-export function fetchAdPhotos(id: string, signal?: AbortSignal) {
-  return getJson<AdPhoto[]>(`/anuncios/${encodeURIComponent(id)}/fotos`, undefined, { signal });
+/** Com sessão, o dono e a equipe recebem também as fotos em análise e as recusadas; o público, só as aprovadas. */
+export function fetchAdPhotos(id: string, signal?: AbortSignal, signedIn = false) {
+  return request<AdPhoto[]>(`/anuncios/${encodeURIComponent(id)}/fotos`, { signal, auth: signedIn });
 }
 
 export function fetchPublicProfile(id: string, signal?: AbortSignal) {

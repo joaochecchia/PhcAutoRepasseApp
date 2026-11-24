@@ -532,7 +532,7 @@ function LotRow({ lot }: { lot: MyLot }) {
       accessibilityLabel={`Lote ${lot.titulo}, ${lot.disponiveis} de ${lot.total} carros à venda, ${formatCents(lot.precoCentavos)} cada`}
       accessibilityHint="Abre a edição do lote"
       style={({ pressed }) => [styles.lot, { backgroundColor: pressed ? colors.subtle : colors.surface, borderColor: colors.border }]}>
-      <VehiclePhoto path={lot.fotoUrl} recyclingKey={lot.id} style={styles.lotPhoto} />
+      <VehiclePhoto path={lot.fotoUrl} recyclingKey={lot.id} style={styles.lotPhoto} owner />
       <View style={styles.flex}>
         <AppText variant="bodyStrong" numberOfLines={2}>
           {lot.titulo}

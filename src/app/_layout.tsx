@@ -124,6 +124,7 @@ function Navigation() {
           <Stack.Screen name="admin/banners/index" options={{ title: 'Banners', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="admin/banners/[id]" options={{ title: 'Banner', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="admin/denuncias" options={{ title: 'Denúncias', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="admin/fotos" options={{ title: 'Fotos em revisão', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="admin/conversas/index" options={{ title: 'Conversas', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="admin/conversas/[id]" options={{ title: 'Conversa', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen

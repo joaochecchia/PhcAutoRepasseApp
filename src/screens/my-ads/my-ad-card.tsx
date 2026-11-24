@@ -63,7 +63,7 @@ export function MyAdCard({ ad, busy, onPress, onActions }: Props) {
       scaleTo={0.98}
       style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View>
-        <VehiclePhoto path={ad.fotoPrincipalUrl} recyclingKey={ad.id} style={styles.photo} />
+        <VehiclePhoto path={ad.fotoPrincipalUrl} recyclingKey={ad.id} style={styles.photo} owner />
         {ad.loteId ? (
           <View style={styles.lot}>
             <Layers size={12} color="#fff" />

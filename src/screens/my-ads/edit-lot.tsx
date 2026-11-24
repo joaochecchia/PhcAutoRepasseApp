@@ -31,6 +31,8 @@ import { addressFields, fieldsByType, type Field } from '@/screens/announce/fiel
 import { adPayload, type Draft } from '@/screens/announce/payload';
 import { adPatch, adToDraft, type Motors } from './edit-draft';
 import { PhotoManager } from './edit-photos';
+import { moderationRefetch } from '@/components/photo-moderation';
+import { plateVideoWarning, videoSentMessage } from '@/utils/video-notice';
 import { StatusPill } from './my-ad-card';
 
 const MAX_LOT_CARS = 50;
@@ -97,6 +99,9 @@ function LotForm({ initialLot, template }: { initialLot: Lot; template: AdForEdi
     queryKey: ['lot', initialLot.id, true],
     queryFn: ({ signal }) => fetchLot(initialLot.id, signal, true),
     initialData: initialLot,
+    // Foto nova nasce "Em análise" e o vídeo passa pela compressão: recarrega até o servidor decidir.
+    refetchInterval: (query) =>
+      query.state.data?.video?.status === 'PROCESSANDO' ? 5000 : moderationRefetch(query.state.data?.fotos),
   });
   const lot = lotQuery.data;
   const lotCars = lot.carros ?? [];
@@ -279,20 +284,23 @@ function LotForm({ initialLot, template }: { initialLot: Lot; template: AdForEdi
     if (result.canceled) return;
     const asset = result.assets[0];
     const limits = rules.data;
-    if (limits && asset.duration != null && asset.duration / 1000 > limits.duracaoMaximaVideoSegundos)
-      return setCarNotice({ tone: 'error', text: `O vídeo deve ter até ${limits.duracaoMaximaVideoSegundos} segundos.` });
     if (limits && asset.fileSize != null && asset.fileSize > limits.tamanhoMaximoEnvioVideoBytes)
-      return setCarNotice({ tone: 'error', text: 'O vídeo é maior que o limite de envio.' });
+      return setCarNotice({ tone: 'error', text: 'O vídeo é maior que o limite de envio. Grave um trecho menor.' });
+    // Vídeo longo não é recusado: o servidor guarda só os primeiros segundos e avisa na resposta.
+    let cut = false;
     await now(
       'video',
-      () =>
-        announceApi.uploadLotVideo(lot.id, {
+      async () => {
+        const sent = await announceApi.uploadLotVideo(lot.id, {
           uri: asset.uri,
           name: asset.fileName || 'video-do-lote.mp4',
           type: asset.mimeType || 'video/mp4',
-        }),
-      'Vídeo recebido e salvo. Ele aparece no lote depois da compressão.',
+        });
+        cut = Boolean(sent.cortado);
+      },
+      videoSentMessage('lote', false),
     );
+    if (cut) setCarNotice({ tone: 'success', text: videoSentMessage('lote', true) });
   }
 
   async function pickReport(car: LotCar, index: number) {
@@ -494,7 +502,7 @@ function LotForm({ initialLot, template }: { initialLot: Lot; template: AdForEdi
           />
         </Section>
 
-        <Section title="Vídeo do lote" note="Aparece em todos os carros, junto das fotos. Salvo na hora.">
+        <Section title="Vídeo do lote" note="Aparece em todos os carros, junto das fotos, depois da compressão. Salvo na hora.">
           <View style={[styles.media, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.inline}>
               <Film size={20} color={colors.muted} />
@@ -502,13 +510,18 @@ function LotForm({ initialLot, template }: { initialLot: Lot; template: AdForEdi
                 <AppText variant="bodyStrong">{lot.video ? 'Vídeo enviado' : 'Nenhum vídeo enviado'}</AppText>
                 <AppText variant="caption" color={lot.video?.status === 'FALHOU' ? 'red' : 'muted'}>
                   {!lot.video
-                    ? 'Envie um vídeo de até 30 s mostrando os carros.'
+                    ? `Até 30 s mostrando os carros (os mais longos são cortados). ${plateVideoWarning}`
                     : lot.video.status === 'PROCESSANDO'
-                      ? 'Comprimindo o vídeo… aparece no lote em alguns minutos.'
+                      ? 'Comprimindo o vídeo em HD. Depois ele aparece no lote; você pode sair desta tela.'
                       : lot.video.status === 'FALHOU'
-                        ? lot.video.mensagemErro || 'Não foi possível processar o vídeo.'
+                        ? `${lot.video.mensagemErro || 'Não foi possível processar o vídeo.'} Envie outro vídeo.`
                         : `${lot.video.duracaoSegundos ?? ''}s · ${Math.max(1, Math.round(lot.video.tamanhoBytes / 1024 / 1024))} MB`}
                 </AppText>
+                {lot.video?.cortado ? (
+                  <AppText variant="caption" color="muted">
+                    Só os primeiros 30 segundos foram guardados.
+                  </AppText>
+                ) : null}
               </View>
             </View>
             {rules.data?.liberado ? (

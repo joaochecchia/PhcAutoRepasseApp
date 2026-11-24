@@ -72,12 +72,55 @@ export type ObservabilityPanel = {
     ultima: { em: string; operacao: string; resultado: string } | null;
     cota: { usado: number; limite: number; janela: string } | null;
   }[];
+  /** Gasto com o Claude na moderação de fotos; ausente em backend anterior a 24/11/2026. */
+  claude?: ClaudeSpend;
   /** Monitor de alertas (MonitorOperacional); ausente em backend anterior a 17/11/2026. */
   alertas?: {
     ativos: { chave: string; nome: string; detalhe: string; desde: string }[];
     recentes: ObservabilityAlert[];
   };
 };
+
+/** Valores em dólares; {@code dolares} nulo quando o Redis não respondeu. */
+export type ClaudeSpendPeriod = { chamadas: number; tokensEntrada: number; tokensSaida: number; dolares: number | null };
+
+export type ClaudeSpend = {
+  modelo: string;
+  precoEntradaPorMilhao: number;
+  precoSaidaPorMilhao: number;
+  hoje: ClaudeSpendPeriod;
+  mes: ClaudeSpendPeriod;
+  trintaDias: ClaudeSpendPeriod;
+  /** Saldo informado no servidor menos o gasto estimado desde a data; nulo se não configurado. */
+  saldo: { informado: number; em: string; gastoDesde: number | null; estimado: number | null; completo: boolean } | null;
+  /** Custo oficial do mês (UTC) pela API da Anthropic, com atraso de horas. */
+  oficial: {
+    configurado: boolean;
+    mesDolares: number | null;
+    mesDesde: string | null;
+    atualizadoAte: string | null;
+    consultadoEm: string | null;
+    erro: string | null;
+  };
+};
+
+/** Foto que a moderação automática mandou para a equipe (ADMIN e DONO). */
+export type PhotoInReview = {
+  origem: 'ANUNCIO' | 'LOTE';
+  id: string;
+  anuncioId: string | null;
+  loteId: string | null;
+  titulo: string;
+  anuncianteId: string;
+  anunciante: string | null;
+  /** Classificação do modelo; nula quando não houve (recusa do modelo ou erro). */
+  categoria: string | null;
+  /** Explicação para a equipe, não para o anunciante. */
+  motivo: string | null;
+  enviadaParaRevisaoEm: string | null;
+  url: string;
+};
+export type PhotosInReviewPage = { fotos: PhotoInReview[]; total: number; pagina: number; tamanho: number };
 
 /** Impulso manual da PHC: prioridade 1 (menor) a 3 (maior); ate nulo = sem prazo. */
 export type AdBoost = {
@@ -138,6 +181,27 @@ export type ModerationConversation = {
 export type ModerationPage = { conversas: ModerationConversation[]; pagina: number; temProxima: boolean };
 
 const enc = encodeURIComponent;
+
+/** Fotos em revisão manual (adminPhotoReviewApi do site): aprovar borra as placas e publica; recusar avisa o anunciante. */
+export const adminPhotoReviewApi = {
+  list: (pagina: number, signal?: AbortSignal) =>
+    request<PhotosInReviewPage>('/admin/anuncios/fotos-em-revisao', { auth: true, signal, params: { pagina, tamanho: 20 } }),
+  summary: (signal?: AbortSignal) =>
+    request<{ emRevisao: number }>('/admin/anuncios/fotos-em-revisao/resumo', { auth: true, signal }).then((data) => data.emRevisao),
+  /** O borrão da placa roda na aprovação: espera mais que o normal. */
+  approve: (photo: Pick<PhotoInReview, 'origem' | 'id'>) =>
+    request<void>(`/admin/anuncios/fotos-em-revisao/${photo.origem}/${enc(photo.id)}/aprovacao`, {
+      method: 'POST',
+      auth: true,
+      timeoutMs: 60_000,
+    }),
+  reject: (photo: Pick<PhotoInReview, 'origem' | 'id'>, motivo: string, apagarArquivo: boolean) =>
+    request<void>(`/admin/anuncios/fotos-em-revisao/${photo.origem}/${enc(photo.id)}/recusa`, {
+      method: 'POST',
+      body: { motivo, apagarArquivo },
+      auth: true,
+    }),
+};
 
 /** Painel administrativo (adminApi do site). Usuários e limite: só DONO; o resto: ADMIN e DONO. O servidor decide. */
 export const adminApi = {

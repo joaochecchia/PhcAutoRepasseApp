@@ -15,7 +15,7 @@ import { Fragment } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { adminApi, type ObservabilityCount, type ObservabilityPanel } from '@/api/admin';
+import { adminApi, type ClaudeSpend, type ObservabilityCount, type ObservabilityPanel } from '@/api/admin';
 import { AppText } from '@/components/app-text';
 import { Notice } from '@/components/notice';
 import { Skeleton } from '@/components/skeleton';
@@ -24,7 +24,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
 
 import { AdminGate } from './admin-gate';
-import { ago, duration, formatClock, formatInteger } from './format';
+import { ago, duration, formatClock, formatDate, formatDateTime, formatInteger } from './format';
 import { AdminRow, AdminSection, Divider, Tag } from './ui';
 
 export const observabilityKey = ['admin', 'observability'] as const;
@@ -135,6 +135,8 @@ function Observability() {
         Contagens guardadas por 45 dias. ViaCEP e a tokenização do cartão vão direto do aparelho ou do navegador, por
         isso não aparecem aqui.
       </AppText>
+
+      {data.claude ? <ClaudeSpendSection spend={data.claude} /> : null}
 
       <Checklist checklist={data.checklist} />
     </ScrollView>
@@ -296,6 +298,89 @@ function Integration({ item }: { item: ObservabilityPanel['integracoes'][number]
   );
 }
 
+/** Dólares com centavos; abaixo de US$ 1, mais casas, para o gasto de poucas chamadas não virar zero. */
+function usd(value: number | null | undefined) {
+  if (value == null) return '—';
+  const digits = Math.abs(value) < 1 && value !== 0 ? 4 : 2;
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: digits,
+  }).format(value);
+}
+
+/** Gasto com o Claude na moderação das fotos (AdminObservability do site). */
+function ClaudeSpendSection({ spend }: { spend: ClaudeSpend }) {
+  const { colors } = useTheme();
+  const official = spend.oficial;
+  const balance = spend.saldo;
+  const lowBalance = balance?.estimado != null && balance.estimado < 5;
+  const items: { label: string; value: string; note: string; alert?: boolean }[] = [
+    { label: 'Hoje (estimado)', value: usd(spend.hoje.dolares), note: `${formatInteger(spend.hoje.chamadas)} chamadas` },
+    { label: 'Este mês (estimado)', value: usd(spend.mes.dolares), note: `${formatInteger(spend.mes.chamadas)} chamadas` },
+    {
+      label: 'Últimos 30 dias (estimado)',
+      value: usd(spend.trintaDias.dolares),
+      note: `${formatInteger(spend.trintaDias.tokensEntrada)} tokens de entrada · ${formatInteger(spend.trintaDias.tokensSaida)} de saída`,
+    },
+    {
+      label: 'Este mês (oficial)',
+      value: official.configurado ? usd(official.mesDolares) : '—',
+      note: !official.configurado
+        ? 'Sem a chave Admin da Anthropic'
+        : official.atualizadoAte
+          ? `Dados até ${formatDateTime(official.atualizadoAte)}`
+          : official.consultadoEm
+            ? 'Sem dados da Anthropic ainda'
+            : 'Primeira consulta em até 1 min',
+    },
+    {
+      label: 'Saldo estimado',
+      value: balance ? usd(balance.estimado) : '—',
+      note: balance
+        ? `${usd(balance.informado)} em ${formatDate(balance.em)} − ${usd(balance.gastoDesde)} gastos${balance.completo ? '' : ' (histórico incompleto)'}`
+        : 'Informe o saldo do Console no servidor',
+      alert: lowBalance,
+    },
+  ];
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionTitle}>
+        <AppText variant="overline" color="muted" accessibilityRole="header">
+          Gasto com o Claude
+        </AppText>
+        <AppText variant="caption" color="muted">
+          Moderação de fotos · {spend.modelo}
+        </AppText>
+      </View>
+      <View style={styles.grid}>
+        {items.map((item) => (
+          <View
+            key={item.label}
+            style={[styles.number, { backgroundColor: colors.surface, borderColor: item.alert ? colors.red : colors.border }]}
+            accessible
+            accessibilityLabel={`${item.label}: ${item.value}. ${item.note}`}>
+            <AppText variant="title" color={item.alert ? 'red' : 'text'}>
+              {item.value}
+            </AppText>
+            <AppText variant="caption">{item.label}</AppText>
+            <AppText variant="caption" color="muted">
+              {item.note}
+            </AppText>
+          </View>
+        ))}
+      </View>
+      {official.erro ? <Notice tone="error" message={`Custo oficial: ${official.erro}`} /> : null}
+      <AppText variant="caption" color="muted" style={styles.sectionTitle}>
+        Estimado: tokens de cada resposta × {usd(spend.precoEntradaPorMilhao)} (entrada) e {usd(spend.precoSaidaPorMilhao)}{' '}
+        (saída) por milhão, no fuso de Brasília. Oficial: custo do mês em UTC lido da Anthropic a cada 30 min, com 4 a 24 h
+        de atraso, antes dos créditos. O saldo vem de ANTHROPIC_SALDO_USD e ANTHROPIC_SALDO_EM no servidor.
+      </AppText>
+    </View>
+  );
+}
+
 function Checklist({ checklist }: { checklist: ObservabilityPanel['checklist'] }) {
   const pending = checklist.filter((item) => item.estado !== 'OK').length;
   const groups = [...new Set(checklist.map((item) => item.grupo))];
@@ -332,7 +417,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1, gap: 2 },
   note: { marginTop: -space.md, paddingHorizontal: space.xs },
   section: { gap: space.sm },
-  sectionTitle: { paddingHorizontal: space.xs },
+  sectionTitle: { paddingHorizontal: space.xs, gap: 2 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   number: { flexGrow: 1, flexBasis: '45%', borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, padding: space.md, gap: 2 },
   alert: { flexDirection: 'row', gap: space.md, padding: space.lg },

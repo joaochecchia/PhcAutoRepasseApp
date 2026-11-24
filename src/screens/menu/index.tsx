@@ -13,6 +13,7 @@ import {
   CreditCard,
   FileText,
   Flag,
+  ImageUp,
   LayoutDashboard,
   MessageCircle,
   MessagesSquare,
@@ -43,6 +44,7 @@ import { company, formatPhone } from '@/data/company';
 import { useAccount } from '@/hooks/use-account';
 import { useNoticesSummary } from '@/hooks/use-notices';
 import { useOpenReports } from '@/hooks/use-open-reports';
+import { usePhotosInReview } from '@/hooks/use-photos-in-review';
 import { isStaff, useSession } from '@/hooks/use-session';
 import { useTheme, type ThemePreference } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
@@ -74,7 +76,7 @@ const explore: Item[] = [
   { icon: CreditCard, label: 'Meu plano', onPress: () => router.push('/planos' as Href) },
 ];
 
-const adminItems = (openReports: number): Item[] => [
+const adminItems = (openReports: number, photosInReview: number): Item[] => [
   { icon: LayoutDashboard, label: 'Painel administrativo', onPress: () => router.push('/admin') },
   {
     icon: Flag,
@@ -82,6 +84,13 @@ const adminItems = (openReports: number): Item[] => [
     note: openReports ? `${openReports} aguardando` : undefined,
     highlight: openReports > 0,
     onPress: () => router.push('/admin/denuncias'),
+  },
+  {
+    icon: ImageUp,
+    label: 'Fotos em revisão',
+    note: photosInReview ? `${photosInReview} aguardando` : undefined,
+    highlight: photosInReview > 0,
+    onPress: () => router.push('/admin/fotos'),
   },
   { icon: Activity, label: 'Observabilidade', onPress: () => router.push('/admin/observabilidade') },
 ];
@@ -119,6 +128,7 @@ export function MenuScreen() {
   const user = session.status === 'authenticated' ? session.user : null;
   const notices = useNoticesSummary();
   const openReports = useOpenReports(Boolean(user && isStaff(user.papel)));
+  const photosInReview = usePhotosInReview(Boolean(user && isStaff(user.papel)));
   // O WhatsApp do atendimento vem do servidor e some se não estiver cadastrado, como no rodapé do site.
   const support = useQuery({
     queryKey: ['support-whatsapp'],
@@ -162,7 +172,7 @@ export function MenuScreen() {
       {user ? <Group title="Sua conta" items={accountItems(notices.data?.naoLidos ?? 0)} /> : null}
       <Group title="Explorar" items={explore} />
       <ThemePicker />
-      {user && isStaff(user.papel) ? <Group title="Administração" items={adminItems(openReports.data ?? 0)} /> : null}
+      {user && isStaff(user.papel) ? <Group title="Administração" items={adminItems(openReports.data ?? 0, photosInReview.data ?? 0)} /> : null}
 
       <View style={styles.group}>
         <AppText variant="overline" color="muted" style={styles.groupTitle}>

@@ -10,6 +10,7 @@ import { mediaUrl } from '@/api/client';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { MediaGallery } from '@/components/media-gallery';
+import { inReview, moderationRefetch } from '@/components/photo-moderation';
 import { VehiclePromotions } from '@/components/promotions';
 import { Skeleton } from '@/components/skeleton';
 import { StateView } from '@/components/state-view';
@@ -18,6 +19,17 @@ import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
 import { formatCents } from '@/utils/format';
+import type { AdPhoto } from '@/api/contracts';
+
+/** Para o dono: fotos ainda fora dos carros (em análise ou recusadas). O motivo e a troca ficam em Editar lote. */
+function moderationSummary(photos: AdPhoto[]) {
+  const reviewing = photos.filter(inReview).length;
+  const rejected = photos.filter((photo) => photo.statusModeracao === 'REJEITADA').length;
+  return [
+    reviewing ? `${reviewing === 1 ? '1 foto está em análise' : `${reviewing} fotos estão em análise`} e ainda não aparece${reviewing === 1 ? '' : 'm'}.` : '',
+    rejected ? `${rejected === 1 ? '1 foto foi recusada' : `${rejected} fotos foram recusadas`}: veja o motivo em Editar lote.` : '',
+  ].filter(Boolean).join(' ');
+}
 
 /** Lote: fotos e vídeo compartilhados, preço único e um card para cada carro à venda (LotPage do site). */
 export function LotScreen({ id }: { id: string }) {
@@ -30,6 +42,8 @@ export function LotScreen({ id }: { id: string }) {
     queryKey: ['lot', id, signedIn],
     queryFn: ({ signal }) => fetchLot(id, signal, signedIn),
     enabled: session.status !== 'loading',
+    // O dono recebe também as fotos em análise: atualiza até a moderação decidir.
+    refetchInterval: (query) => moderationRefetch(query.state.data?.fotos),
   });
   const seller = useQuery({
     queryKey: ['profile', lot.data?.anuncianteId],
@@ -104,6 +118,11 @@ export function LotScreen({ id }: { id: string }) {
                       {data.carros!.length} {data.carros!.length === 1 ? 'carro' : 'carros'} no lote, {data.disponiveis} à
                       venda. Edite os dados comuns, as fotos e cada carro em um só lugar.
                     </AppText>
+                    {moderationSummary(data.fotos) ? (
+                      <AppText color={data.fotos.some((photo) => photo.statusModeracao === 'REJEITADA') ? 'red' : 'muted'}>
+                        {moderationSummary(data.fotos)}
+                      </AppText>
+                    ) : null}
                     <Button
                       label="Editar lote"
                       icon={<PencilLine size={16} color={colors.onRed} />}

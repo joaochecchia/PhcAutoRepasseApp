@@ -14,6 +14,7 @@ import { Notice } from '@/components/notice';
 import { Skeleton } from '@/components/skeleton';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
+import { plateVideoWarning, videoSentMessage } from '@/utils/video-notice';
 
 type Kind = 'video' | 'laudo';
 const labels: Record<Kind, string> = { video: 'Vídeo', laudo: 'Laudo cautelar' };
@@ -61,24 +62,25 @@ export function EditMedia({ anuncioId }: { anuncioId: string }) {
     if (result.canceled) return;
     const asset = result.assets[0];
     const limits = rules.data;
-    if (limits && asset.duration != null && asset.duration / 1000 > limits.duracaoMaximaVideoSegundos) {
-      setError(`O vídeo deve ter até ${limits.duracaoMaximaVideoSegundos} segundos.`);
-      return;
-    }
     if (limits && asset.fileSize != null && asset.fileSize > limits.tamanhoMaximoEnvioVideoBytes) {
-      setError(`O vídeo passa de ${megabytes(limits.tamanhoMaximoEnvioVideoBytes)}.`);
+      setError(`O vídeo deve ter até ${megabytes(limits.tamanhoMaximoEnvioVideoBytes)}. Grave um trecho menor.`);
       return;
     }
+    // Vídeo longo não é recusado: o servidor guarda só os primeiros segundos e avisa na resposta.
+    let cut = false;
     await run(
       'video',
-      () =>
-        announceApi.uploadVideo(anuncioId, {
+      async () => {
+        const sent = await announceApi.uploadVideo(anuncioId, {
           uri: asset.uri,
           name: asset.fileName || 'veiculo.mp4',
           type: asset.mimeType || 'video/mp4',
-        }),
-      'Vídeo enviado. Ele é preparado no servidor e aparece no anúncio em instantes.',
+        });
+        cut = Boolean(sent.cortado);
+      },
+      videoSentMessage('anúncio', false),
     );
+    if (cut) setNotice(videoSentMessage('anúncio', true));
   }
 
   async function pickReport() {
@@ -196,19 +198,23 @@ function MediaRow({
   const { colors } = useTheme();
   const Icon = kind === 'video' ? Video : FileText;
   const status = !media
-    ? 'Nenhum arquivo enviado.'
+    ? kind === 'video'
+      ? `Até 30 s (os mais longos são cortados), comprimido em HD. ${plateVideoWarning}`
+      : 'Nenhum arquivo enviado.'
     : media.status === 'PROCESSANDO'
-      ? 'Preparando no servidor…'
+      ? kind === 'video'
+        ? 'Comprimindo o vídeo em HD. Depois ele aparece no anúncio; você pode sair desta tela.'
+        : 'Preparando no servidor…'
       : media.status === 'FALHOU'
-        ? media.mensagemErro || 'Não foi possível preparar o arquivo. Envie de novo.'
-        : `${media.nomeArquivo} · ${megabytes(media.tamanhoBytes)}`;
+        ? `${media.mensagemErro || 'Não foi possível preparar o arquivo.'} Envie de novo.`
+        : `${media.nomeArquivo} · ${megabytes(media.tamanhoBytes)}${media.cortado ? ' · só os primeiros 30 s' : ''}`;
   return (
     <View style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.rowHead}>
         <Icon size={20} color={colors.muted} />
         <View style={styles.flex}>
           <AppText variant="bodyStrong">{labels[kind]}</AppText>
-          <AppText variant="caption" color={media?.status === 'FALHOU' ? 'red' : 'muted'} numberOfLines={2}>
+          <AppText variant="caption" color={media?.status === 'FALHOU' ? 'red' : 'muted'} numberOfLines={3}>
             {status}
           </AppText>
         </View>

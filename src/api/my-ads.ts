@@ -1,5 +1,6 @@
 import type { UploadFile } from './announce';
 import { request, upload } from './client';
+import type { AdPhoto, MediaFile } from './contracts';
 
 export type AdStatus = 'RASCUNHO' | 'PUBLICADO' | 'PAUSADO' | 'RESERVADO' | 'VENDIDO' | 'ARQUIVADO';
 /** MeuAnuncioResponse do backend. */
@@ -127,18 +128,9 @@ export type AdForEdit = {
   criadoEm: string;
   publicadoEm: string | null;
 };
-export type OwnPhoto = { id: string; anuncioId: string; posicao: number; textoAlternativo?: string | null; url: string };
-export type AdMedia = {
-  id: string;
-  tipo: 'VIDEO' | 'LAUDO';
-  status: 'PROCESSANDO' | 'PRONTO' | 'FALHOU';
-  nomeArquivo: string;
-  contentType: string;
-  tamanhoBytes: number;
-  duracaoSegundos: number | null;
-  mensagemErro: string | null;
-  url: string | null;
-};
+/** Foto vista pelo dono: todas, com a situação da moderação. */
+export type OwnPhoto = AdPhoto;
+export type AdMedia = MediaFile;
 export type AdMediaSet = { video: AdMedia | null; laudo: AdMedia | null };
 
 export type AdStatsPerson = {

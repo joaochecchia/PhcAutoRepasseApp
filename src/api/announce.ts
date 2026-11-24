@@ -1,6 +1,7 @@
 import { File, Paths } from "expo-file-system";
 import { Platform } from "react-native";
 import { request, upload, type UploadProgress } from "./client";
+import type { MediaFile } from "./contracts";
 
 export type Catalog = {
   fabricantes: { valor: string; aliases: string[] }[];
@@ -199,7 +200,7 @@ export const announceApi = {
   uploadLotVideo: (id: string, file: UploadFile) => {
     const form = new FormData();
     form.append("arquivo", file as unknown as Blob);
-    return upload<unknown>(`/lotes/${encodeURIComponent(id)}/midias/video`, form, {
+    return upload<MediaFile>(`/lotes/${encodeURIComponent(id)}/midias/video`, form, {
       method: "PUT",
       timeoutMs: 240_000,
     });
@@ -207,7 +208,7 @@ export const announceApi = {
   uploadVideo: (id: string, file: UploadFile) => {
     const form = new FormData();
     form.append("arquivo", file as unknown as Blob);
-    return upload<unknown>(
+    return upload<MediaFile>(
       `/anuncios/${encodeURIComponent(id)}/midias/video`,
       form,
       { method: "PUT", timeoutMs: 240_000 },

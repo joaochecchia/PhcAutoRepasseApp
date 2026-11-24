@@ -40,6 +40,11 @@ import { radius, space, touch } from "@/theme";
 import { adPayload, type Draft } from "./payload";
 import { ChoiceRow } from "@/components/choice-row";
 import { preparePhoto } from "@/utils/prepare-photo";
+import {
+  plateVideoWarning,
+  videoSentMessage,
+  videoTrimNotice,
+} from "@/utils/video-notice";
 import { AdField, suggestionsFor } from "./ad-fields";
 import { AdvertiserReview } from "./advertiser-review";
 import { FipeSelector } from "./fipe-selector";
@@ -110,10 +115,12 @@ export function Announce() {
   ]);
   const [existing, setExisting] = useState<string[]>([]);
   const [video, setVideo] = useState<UploadFile | null>(null);
+  const [videoNotice, setVideoNotice] = useState("");
   const [report, setReport] = useState<UploadFile | null>(null);
   const [error, setError] = useState("");
   const [created, setCreated] = useState<string | null>(null);
   const [warning, setWarning] = useState("");
+  const [createdVideoNote, setCreatedVideoNote] = useState("");
   const [reference, setReference] = useState<FipeReference | null>(null);
   const [fipeNotice, setFipeNotice] = useState("");
   const [progress, setProgress] = useState<number | null>(null);
@@ -304,9 +311,11 @@ export function Announce() {
           lotUnits.some((unit) => unit.laudo)
         )
           warnings.push("Os laudos do lote não foram enviados.");
+        let videoNote = "";
         if (video)
           try {
-            await announceApi.uploadLotVideo(result.loteId, video);
+            const sent = await announceApi.uploadLotVideo(result.loteId, video);
+            videoNote = videoSentMessage("lote", sent.cortado);
           } catch (reason) {
             warnings.push(`Vídeo: ${message(reason)}`);
           }
@@ -320,16 +329,22 @@ export function Announce() {
             } catch (reason) {
               warnings.push(`Laudo do carro ${index + 1}: ${message(reason)}`);
             }
-        return { id: result.loteId, warning: warnings.join(" ") };
+        return {
+          id: result.loteId,
+          warning: warnings.join(" "),
+          videoNote,
+        };
       }
       const result = await sendOnce(
         () => announceApi.create(common, photos, setProgress),
         (fresh) => (fresh[0] ? { id: fresh[0].id } : null),
       );
       const warnings: string[] = [];
+      let videoNote = "";
       if (video)
         try {
-          await announceApi.uploadVideo(result.id, video);
+          const sent = await announceApi.uploadVideo(result.id, video);
+          videoNote = videoSentMessage("anúncio", sent.cortado);
         } catch (reason) {
           warnings.push(`Vídeo: ${message(reason)}`);
         }
@@ -339,11 +354,12 @@ export function Announce() {
         } catch (reason) {
           warnings.push(`Laudo: ${message(reason)}`);
         }
-      return { id: result.id, warning: warnings.join(" ") };
+      return { id: result.id, warning: warnings.join(" "), videoNote };
     },
-    onSuccess: ({ id, warning: resultWarning }) => {
+    onSuccess: ({ id, warning: resultWarning, videoNote }) => {
       setCreated(id);
       setWarning(resultWarning);
+      setCreatedVideoNote(videoNote);
       setError("");
     },
     onError: (reason) => setError(message(reason)),
@@ -496,23 +512,17 @@ export function Announce() {
     if (result.canceled) return;
     const asset = result.assets[0];
     if (
-      asset.duration != null &&
-      rules.data &&
-      asset.duration / 1000 > rules.data.duracaoMaximaVideoSegundos
-    ) {
-      setError(
-        `O vídeo deve ter até ${rules.data.duracaoMaximaVideoSegundos} segundos.`,
-      );
-      return;
-    }
-    if (
       asset.fileSize != null &&
       rules.data &&
       asset.fileSize > rules.data.tamanhoMaximoEnvioVideoBytes
     ) {
-      setError("O vídeo é maior que o limite de envio.");
+      setError("O vídeo é maior que o limite de envio. Grave um trecho menor.");
       return;
     }
+    // Vídeo longo não é recusado: o servidor guarda só os primeiros segundos.
+    setVideoNotice(
+      videoTrimNotice(asset.duration, rules.data?.duracaoMaximaVideoSegundos),
+    );
     setVideo({
       uri: asset.uri,
       name: asset.fileName || "veiculo.mp4",
@@ -769,8 +779,13 @@ export function Announce() {
         <AppText color="muted">
           {asLot
             ? "Os carros do lote foram salvos na PHC Auto."
-            : "Seu veículo foi salvo na PHC Auto."}
+            : "Seu veículo foi salvo na PHC Auto."}{" "}
+          As fotos passam por uma análise automática, com a placa borrada, e
+          aparecem {asLot ? "nos carros" : "no anúncio"} logo depois.
         </AppText>
+        {createdVideoNote ? (
+          <AppText color="muted">{createdVideoNote}</AppText>
+        ) : null}
         {warning ? (
           <Notice
             tone="error"
@@ -1294,13 +1309,25 @@ export function Announce() {
                   variant="secondary"
                   onPress={addVideo}
                 />
+                <AppText variant="caption" color="muted">
+                  Vídeo de até {rules.data.duracaoMaximaVideoSegundos} s (os
+                  mais longos são cortados), comprimido em HD. {plateVideoWarning}
+                </AppText>
                 {video ? (
                   <>
                     <AppText color="muted">{video.name}</AppText>
+                    {videoNotice ? (
+                      <AppText variant="caption" color="muted">
+                        {videoNotice}
+                      </AppText>
+                    ) : null}
                     <Button
                       label="Remover vídeo"
                       variant="ghost"
-                      onPress={() => setVideo(null)}
+                      onPress={() => {
+                        setVideo(null);
+                        setVideoNotice("");
+                      }}
                     />
                   </>
                 ) : null}

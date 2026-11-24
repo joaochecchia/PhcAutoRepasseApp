@@ -53,6 +53,22 @@ export function mediaUrl(path: string | null | undefined): string | null {
   return `${apiOrigin}${path.startsWith('/') ? '' : '/'}${path}`;
 }
 
+/**
+ * Imagem que só o dono e a equipe podem abrir (foto em análise ou recusada, foto de rascunho): o arquivo pede a
+ * sessão, e o `expo-image` não passa pelo `request`. A chave de cache muda com a situação para a versão sem a placa
+ * borrada não ficar guardada no lugar da aprovada (que tem a mesma URL).
+ */
+export function privateImageSource(path: string | null | undefined, cacheTag: string) {
+  const uri = mediaUrl(path);
+  if (!uri) return null;
+  const token = sessionStore.accessToken();
+  return {
+    uri,
+    cacheKey: `${uri}#${cacheTag}`,
+    headers: token ? { ...appHeaders, Authorization: `Bearer ${token}` } : appHeaders,
+  };
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,

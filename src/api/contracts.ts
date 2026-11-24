@@ -125,12 +125,24 @@ export type AdDetail = {
   loteId?: string | null;
 };
 
+/**
+ * Moderação automática da foto. O público só recebe APROVADA; o anunciante e a equipe veem também PENDENTE e REVISAO
+ * ("Em análise") e REJEITADA ("Recusada", com o motivo).
+ */
+export type PhotoModerationStatus = 'PENDENTE' | 'APROVADA' | 'REJEITADA' | 'REVISAO';
+
 export type AdPhoto = {
   id: string;
-  anuncioId: string;
+  /** Nulo nas fotos do lote. */
+  anuncioId: string | null;
   posicao: number;
   textoAlternativo?: string | null;
-  url: string;
+  /** Nula quando a foto recusada por conteúdo impróprio teve o arquivo apagado. */
+  url: string | null;
+  /** Ausente em backend anterior à moderação (24/11/2026): trate como aprovada. */
+  statusModeracao?: PhotoModerationStatus;
+  /** Só na recusa: o motivo em linguagem simples para o anunciante. */
+  motivoModeracao?: string | null;
 };
 
 /**
@@ -183,6 +195,8 @@ export type MediaFile = {
   duracaoSegundos: number | null;
   mensagemErro: string | null;
   url: string | null;
+  /** O vídeo enviado tinha mais de 30 s e só os primeiros 30 s foram guardados. */
+  cortado?: boolean;
 };
 export type MediaSet = { video: MediaFile | null; laudo: MediaFile | null };
 
@@ -260,11 +274,11 @@ export type WaitlistOrder = Omit<WaitlistRequest, 'cidade' | 'uf' | 'alcance'> &
 
 export type AccountNotice = {
   id: string;
-  /** DENUNCIA: denúncia nova, só para ADMIN e DONO. */
-  tipo: 'FILA_ESPERA' | 'CHAT' | 'DENUNCIA';
+  /** DENUNCIA: denúncia nova, só para ADMIN e DONO. MODERACAO: foto do anúncio ou do lote recusada. */
+  tipo: 'FILA_ESPERA' | 'CHAT' | 'DENUNCIA' | 'MODERACAO';
   titulo: string;
   detalhe: string | null;
-  /** Caminho interno do site (/anuncio/<id> ou /lote/<id>), que é o mesmo no app. */
+  /** Caminho interno do site (/anuncio/<id>, /lote/<id>, /meus-anuncios/editar/<id>...); `noticeRoute` traduz para o app. */
   link: string;
   criadoEm: string;
   lidoEm: string | null;

@@ -74,6 +74,7 @@ Visível só para os papéis de admin e dono, conforme `papel` da sessão. As ab
 | [~] | Banners da página inicial (alimentam o carrossel do Início) | `AdminBanners`, `BannerPreviewFrame` | `adminApi` (banners) |
 | [~] | Promoções de anúncios | `AdminPage` (aba promoções) | `adminApi` (promoções) |
 | [~] | Moderação de conversas | `AdminChats` | `chatModerationApi` |
+| [~] | Fotos em revisão (aprovar borra a placa; recusar avisa o anunciante, com opção de apagar o arquivo) | `AdminPhotoReview` | `adminPhotoReviewApi` |
 
 O servidor é quem autoriza. Esconder a tela no app é só conveniência.
 
@@ -94,6 +95,7 @@ Estado em 16/11/2026. Tudo o que está `[~]` compila e gera o bundle Android. As
 - Privacidade: sem a parte de cookies do site (o app não usa cookies nem o Pixel).
 - Meus anúncios: completo, com Promoções e Lotes. Editar lote: completo.
 - Detalhes do site trazidos em 17/11/2026: dicas de qualidade do anúncio (`AdQualityTips` → `src/components/ad-quality-tips.tsx`, nas etapas "Dados opcionais" e "Conferência"); troca automática da FIPE equivalente ao mudar zero km/seminovo (`useFipeConditionSync` → `src/hooks/use-fipe-condition-sync.ts`, no Anunciar e na edição; `POST /fipe/consultas/equivalente` e `GET /fipe/referencias/{id}`); dados da empresa do rodapé (`CompanyInfo` → Menu › Sobre, com o WhatsApp de `GET /vendas/atendimento` e o Instagram); e o atalho "Também quer anunciar?" no detalhe do veículo. Compilam e passam no lint; a troca da FIPE não foi exercitada contra o backend com login, e nada disso foi conferido no aparelho.
+- Moderação de fotos (24/11/2026, commit `aa5aa3b` do site): toda foto nova de anúncio ou lote nasce "Em análise" (Claude + borrão de placa no backend). No app: selos "Em análise" e "Recusada" na galeria e na grade de edição (`src/components/photo-moderation.tsx`), motivo da recusa e botão "Trocar" (remove e reenvia na mesma posição), capa = primeira foto não recusada, atualização a cada 6 s enquanto houver foto PENDENTE, aviso ao dono no detalhe do anúncio e do lote. O arquivo da foto não aprovada só abre com sessão: o app manda o Bearer pelo `privateImageSource` (`src/api/client.ts`) e guarda essas imagens só na memória (o servidor manda `no-store`). Vídeo acima de 30 s deixou de ser recusado: o servidor corta e responde `cortado` (`src/utils/video-notice.ts`). Aviso e push `MODERACAO` (canal `avisos`, preferência "Fotos recusadas"), com o link de edição traduzido em `noticeRoute`. Admin: `/admin/fotos` com contador no painel e no Menu; observabilidade com o gasto do Claude. Compila, passa no lint e gera o bundle; o formato das fotos foi conferido no backend local sem sessão. Falta exercitar com login (envio, recusa, troca, aprovação) e conferir no aparelho.
 - Fora de propósito: aviso de cookies e Meta Pixel (o app não usa nenhum dos dois).
 
 ## Só do app
