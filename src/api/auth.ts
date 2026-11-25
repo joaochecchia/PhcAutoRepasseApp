@@ -1,3 +1,5 @@
+import { discardAllDrafts } from '@/utils/announce-draft';
+
 import { request } from './client';
 import { unregisterPush } from './push';
 import type { UserProfile } from './contracts';
@@ -116,6 +118,8 @@ export const authApi = {
       if (refreshToken) await request('/usuarios/logout', { method: 'POST', body: { refreshToken }, timeoutMs: 5_000 });
     } finally {
       await sessionStore.clear();
+      // O anúncio em preenchimento é desta conta: não fica no aparelho depois da saída.
+      await discardAllDrafts();
     }
   },
 

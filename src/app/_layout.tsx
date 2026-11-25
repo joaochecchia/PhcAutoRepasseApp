@@ -94,6 +94,7 @@ function Navigation() {
           <Stack.Screen name="minhas-compras/index" options={{ title: 'Minhas compras', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="minhas-compras/[id]" options={{ title: 'Compra', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="tabela-fipe" options={{ title: 'Tabela FIPE', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
+          <Stack.Screen name="consulta-placa" options={{ title: 'Consulta por placa', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="patio" options={{ title: 'Pátio PHC Auto', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="lojistas" options={{ title: 'Lojistas', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />
           <Stack.Screen name="loja/[slug]" options={{ title: 'Loja', headerShadowVisible: false, headerTitleStyle: { color: colors.text } }} />

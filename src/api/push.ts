@@ -18,7 +18,12 @@ export const pushKinds: { kind: PushKind; label: string; hint: string; channel: 
   { kind: 'CHAT', label: 'Mensagens', hint: 'Quando um comprador ou vendedor mandar mensagem numa conversa sua sobre um anúncio.', channel: 'mensagens' },
   { kind: 'FILA_ESPERA', label: 'Fila de espera', hint: 'Quando for anunciado um veículo que combina com um pedido seu na fila de espera.', channel: 'fila-espera' },
   // O backend manda este tipo pelo canal "avisos" (sem canal próprio), criado à parte em ensurePushChannels.
-  { kind: 'MODERACAO', label: 'Fotos recusadas', hint: 'Quando uma foto do seu anúncio ou lote for recusada na análise, com o motivo.', channel: 'avisos' },
+  {
+    kind: 'MODERACAO',
+    label: 'Análise de fotos e vídeos',
+    hint: 'Quando uma foto ou um vídeo do seu anúncio ou lote for recusado na análise, com o motivo, e quando o vídeo de um anúncio já publicado for aprovado.',
+    channel: 'avisos',
+  },
   {
     kind: 'DENUNCIA',
     label: 'Denúncias',

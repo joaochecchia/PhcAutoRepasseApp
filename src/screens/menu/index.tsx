@@ -25,6 +25,7 @@ import {
   Table2,
   Tags,
   Warehouse,
+  ScanSearch,
   type LucideIcon,
 } from 'lucide-react-native';
 import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -72,6 +73,7 @@ function accountItems(unreadNotices: number): Item[] {
 const explore: Item[] = [
   { icon: Store, label: 'Lojistas', onPress: () => router.push('/lojistas' as Href) },
   { icon: Warehouse, label: 'Pátio PHC', onPress: () => router.push('/patio' as Href) },
+  { icon: ScanSearch, label: 'Consulta por placa', onPress: () => router.push('/consulta-placa' as Href) },
   { icon: Table2, label: 'Tabela FIPE', onPress: () => router.push('/tabela-fipe' as Href) },
   { icon: CreditCard, label: 'Meu plano', onPress: () => router.push('/planos' as Href) },
 ];

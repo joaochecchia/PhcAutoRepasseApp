@@ -14,7 +14,7 @@ import { Notice } from '@/components/notice';
 import { Skeleton } from '@/components/skeleton';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
-import { plateVideoWarning, videoSentMessage } from '@/utils/video-notice';
+import { plateVideoWarning, videoFailed, videoPending, videoSentMessage, videoStatusText } from '@/utils/video-notice';
 
 type Kind = 'video' | 'laudo';
 const labels: Record<Kind, string> = { video: 'Vídeo', laudo: 'Laudo cautelar' };
@@ -27,9 +27,9 @@ export function EditMedia({ anuncioId }: { anuncioId: string }) {
   const media = useQuery({
     queryKey: ['ad-media', anuncioId],
     queryFn: ({ signal }) => myAdsApi.media(anuncioId, signal),
-    // O vídeo é comprimido no servidor depois do envio; acompanha até ficar pronto.
+    // O vídeo é comprimido e analisado no servidor depois do envio; acompanha até ficar pronto ou ser recusado.
     refetchInterval: (query) =>
-      query.state.data?.video?.status === 'PROCESSANDO' || query.state.data?.laudo?.status === 'PROCESSANDO'
+      videoPending(query.state.data?.video?.status) || query.state.data?.laudo?.status === 'PROCESSANDO'
         ? 5000
         : false,
   });
@@ -201,20 +201,21 @@ function MediaRow({
     ? kind === 'video'
       ? `Até 30 s (os mais longos são cortados), comprimido em HD. ${plateVideoWarning}`
       : 'Nenhum arquivo enviado.'
-    : media.status === 'PROCESSANDO'
-      ? kind === 'video'
-        ? 'Comprimindo o vídeo em HD. Depois ele aparece no anúncio; você pode sair desta tela.'
-        : 'Preparando no servidor…'
-      : media.status === 'FALHOU'
-        ? `${media.mensagemErro || 'Não foi possível preparar o arquivo.'} Envie de novo.`
-        : `${media.nomeArquivo} · ${megabytes(media.tamanhoBytes)}${media.cortado ? ' · só os primeiros 30 s' : ''}`;
+    : kind === 'video'
+      ? videoStatusText(media, 'anúncio',
+          `${media.nomeArquivo} · ${megabytes(media.tamanhoBytes)}${media.cortado ? ' · só os primeiros 30 s' : ''}`)
+      : media.status === 'PROCESSANDO'
+        ? 'Preparando no servidor…'
+        : media.status === 'FALHOU'
+          ? `${media.mensagemErro || 'Não foi possível preparar o arquivo.'} Envie de novo.`
+          : `${media.nomeArquivo} · ${megabytes(media.tamanhoBytes)}`;
   return (
     <View style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.rowHead}>
         <Icon size={20} color={colors.muted} />
         <View style={styles.flex}>
           <AppText variant="bodyStrong">{labels[kind]}</AppText>
-          <AppText variant="caption" color={media?.status === 'FALHOU' ? 'red' : 'muted'} numberOfLines={3}>
+          <AppText variant="caption" color={videoFailed(media?.status) ? 'red' : 'muted'} numberOfLines={5}>
             {status}
           </AppText>
         </View>

@@ -188,7 +188,11 @@ export type PublicProfile = {
 export type MediaFile = {
   id: string;
   tipo: 'VIDEO' | 'LAUDO';
-  status: 'PROCESSANDO' | 'PRONTO' | 'FALHOU';
+  /**
+   * Vídeo: PROCESSANDO (comprimindo), MODERANDO (em análise, fora do anúncio), PRONTO, REJEITADO (placa ou conteúdo
+   * impróprio, motivo em mensagemErro) ou FALHOU (erro na compressão). Só PRONTO aparece para o público.
+   */
+  status: 'PROCESSANDO' | 'MODERANDO' | 'PRONTO' | 'REJEITADO' | 'FALHOU';
   nomeArquivo: string;
   contentType: string;
   tamanhoBytes: number;

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { router, type Href } from 'expo-router';
-import { MessagesSquare, Search, WifiOff } from 'lucide-react-native';
+import { ChevronRight, MessagesSquare, ScanSearch, Search, WifiOff } from 'lucide-react-native';
 import { useState } from 'react';
 import { FlatList, RefreshControl, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
@@ -123,6 +123,24 @@ export function Home() {
           <HeroCarousel items={heroItems} />
 
           <Numbers loading={numbers.isPending} anunciados={numbers.data?.anunciados} vendidos={numbers.data?.vendidos} />
+
+          <PressableScale
+            scaleTo={0.985}
+            onPress={() => router.push('/consulta-placa' as Href)}
+            accessibilityRole="button"
+            accessibilityLabel="Consulta por placa: veja versão, preço FIPE e ficha técnica"
+            style={[styles.plateCard, { backgroundColor: colors.surface, borderColor: colors.red }]}>
+            <View style={[styles.plateIcon, { backgroundColor: colors.redTint }]}>
+              <ScanSearch size={22} color={colors.red} />
+            </View>
+            <View style={styles.flex}>
+              <AppText variant="heading">Consulta por placa</AppText>
+              <AppText variant="caption" color="muted">
+                Versão, preço FIPE e ficha técnica pela placa
+              </AppText>
+            </View>
+            <ChevronRight size={20} color={colors.muted} />
+          </PressableScale>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
             {vehicleTypes.map(({ key, label, icon: Icon }) => (
@@ -272,6 +290,16 @@ function Showcase({
 }
 
 const styles = StyleSheet.create({
+  plateCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    marginHorizontal: space.lg,
+    padding: space.md,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+  },
+  plateIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   unread: {
     position: 'absolute',
     top: 2,

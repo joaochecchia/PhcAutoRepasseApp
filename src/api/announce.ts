@@ -49,7 +49,8 @@ export type FipeReference = {
   anoModelo: number;
   zeroKm: boolean;
   combustivel: string;
-  valorCentavos: number;
+  /** Só vem na consulta paga (Tabela FIPE); no cadastro e na edição de anúncio a referência chega sem o valor. */
+  valorCentavos: number | null;
   mesReferencia: string;
   codigoFipe?: string;
 };
@@ -143,6 +144,20 @@ export const announceApi = {
     mesReferencia: string;
   }) =>
     request<FipeReference>("/fipe/consultas", {
+      method: "POST",
+      body: input,
+      auth: true,
+    }),
+  /** Vínculo no cadastro e na edição de anúncio: não gasta a cota do plano e não traz o valor. */
+  fipeLink: (input: {
+    tipo: string;
+    marcaId: string;
+    modeloId: string;
+    anoId: string;
+    referencia: number;
+    mesReferencia: string;
+  }) =>
+    request<FipeReference>("/fipe/consultas/vinculo", {
       method: "POST",
       body: input,
       auth: true,

@@ -18,6 +18,7 @@ import { TextField } from '@/components/text-field';
 import { useAccount } from '@/hooks/use-account';
 import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
+import { discardAllDrafts } from '@/utils/announce-draft';
 import { radius, space } from '@/theme';
 
 import { APPLE_MANAGE_URL, AppleStepError, deletionGate, deletionOutcome, isAppleStepError } from './deletion-flow';
@@ -59,6 +60,7 @@ export function DeleteAccount({ hasPassword }: { hasPassword: boolean }) {
     onSuccess: async (result) => {
       // O servidor já encerrou a sessão; aqui só limpa o aparelho.
       await sessionStore.clear();
+      await discardAllDrafts();
       queryClient.clear();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.dismissAll();

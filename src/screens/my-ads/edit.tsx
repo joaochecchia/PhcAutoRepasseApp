@@ -394,6 +394,7 @@ function EditForm({ ad }: { ad: AdForEdit }) {
                   onYear={(year) => change('anoModelo', year)}
                   onClear={() => undefined}
                   onResolved={applyReference}
+                  linkOnly
                 />
                 <Button
                   label="Manter veículo atual"
@@ -418,7 +419,9 @@ function EditForm({ ad }: { ad: AdForEdit }) {
                   {fipe ? (
                     <View style={[styles.fipe, { backgroundColor: colors.dealTint, borderColor: colors.dealBorder }]}>
                       <AppText variant="label" color="deal">
-                        FIPE {fipe.mesReferencia}: {formatCents(fipe.valorCentavos)}
+                        {fipe.valorCentavos == null
+                          ? `FIPE vinculada (${fipe.mesReferencia}). O valor aparece no anúncio publicado.`
+                          : `FIPE ${fipe.mesReferencia}: ${formatCents(fipe.valorCentavos)}`}
                       </AppText>
                     </View>
                   ) : null}

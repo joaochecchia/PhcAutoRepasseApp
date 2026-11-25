@@ -147,7 +147,7 @@ export function FipeTableScreen() {
               {result.combustivel ? ` · ${result.combustivel}` : ''}
             </AppText>
             <AppText variant="display" style={styles.price}>
-              {formatCents(result.valorCentavos)}
+              {result.valorCentavos == null ? '—' : formatCents(result.valorCentavos)}
             </AppText>
             <View style={[styles.facts, { borderTopColor: colors.border }]}>
               <View style={styles.fact}>

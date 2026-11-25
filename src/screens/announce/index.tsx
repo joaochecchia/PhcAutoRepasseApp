@@ -4,10 +4,11 @@ import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
+  AppState,
   KeyboardAvoidingView,
   Keyboard,
   Platform,
@@ -52,16 +53,31 @@ import { AdQualityTips } from "@/components/ad-quality-tips";
 import { AppText } from "@/components/app-text";
 import { Button } from "@/components/button";
 import { Notice } from "@/components/notice";
+import { showDialog } from "@/components/dialog";
 import { TextField } from "@/components/text-field";
 import { useAccount } from "@/hooks/use-account";
 import { useSession } from "@/hooks/use-session";
 import { useFipeConditionSync } from "@/hooks/use-fipe-condition-sync";
+import type { PlateSuggestion } from "@/api/plates";
+import { PlateField } from "@/components/plate-field";
+import { PlatePrefillCard, plateSuggestionValues, plateVehicleTypes } from "./plate-prefill";
 import { cleanMasked, displayMasked, maskInput } from "@/utils/masks";
 import { useTheme } from "@/hooks/use-theme";
 import { motion, radius, space, touch } from "@/theme";
 import { adPayload, type Draft } from "./payload";
 import { ChoiceRow } from "@/components/choice-row";
 import { ensureCameraPermission } from "@/utils/permission";
+import {
+  discardDraft,
+  draftEpoch,
+  draftVehicleName,
+  loadDraft,
+  removeDraft,
+  saveDraft,
+  savedAtLabel,
+  type AnnounceDraft,
+  type SaveResult,
+} from "@/utils/announce-draft";
 import { preparePhoto } from "@/utils/prepare-photo";
 import {
   plateVideoWarning,
@@ -197,37 +213,138 @@ function message(error: unknown) {
     : "Não foi possível concluir. Tente de novo.";
 }
 
+/**
+ * Confere se há um anúncio em preenchimento salvo no aparelho (o app pode ter fechado, o sistema pode tê-lo encerrado
+ * ou a conexão pode ter caído). A pergunta "usar os dados ou começar do zero" aparece ao tocar em "Continuar" na
+ * conferência dos dados do anunciante, como no site; o formulário então remonta já com a escolha.
+ */
 export function Announce() {
+  const { colors } = useTheme();
+  const session = useSession();
+  const usuarioId =
+    session.status === "authenticated" ? session.user.usuarioId : null;
+  const [ready, setReady] = useState<{
+    usuarioId: string;
+    saved: AnnounceDraft | null;
+    choice: "pending" | "keep" | "fresh";
+  } | null>(null);
+  useEffect(() => {
+    if (!usuarioId) return;
+    let active = true;
+    loadDraft(usuarioId).then((saved) => {
+      if (active) setReady({ usuarioId, saved, choice: "pending" });
+    });
+    return () => {
+      active = false;
+    };
+  }, [usuarioId]);
+  // Sem conta, o formulário mostra o convite para entrar; não há rascunho.
+  if (session.status === "anonymous")
+    return <AnnounceForm key="visitante" draft={null} />;
+  if (!ready || ready.usuarioId !== usuarioId)
+    return (
+      <View
+        style={[styles.root, styles.loading, { backgroundColor: colors.bg }]}
+        accessibilityLabel="Conferindo anúncio em andamento"
+      >
+        <ActivityIndicator color={colors.red} />
+      </View>
+    );
+  const { saved } = ready;
+  function ask() {
+    if (!saved) return;
+    const step = Math.min(saved.stage, lastStage);
+    const photoCount = saved.photos.length;
+    showDialog({
+      title: "Você tem um anúncio em andamento",
+      message:
+        `Os dados do ${draftVehicleName(saved.values)} estavam no cadastro, salvos neste aparelho ` +
+        `${savedAtLabel(saved.savedAt)}: etapa ${step + 1} de ${stages.length} (${stages[step]})` +
+        `${photoCount ? `, com ${photoCount} ${photoCount === 1 ? "foto" : "fotos"}` : ""}. ` +
+        "Quer continuar de onde parou? Por segurança, placa e rua, número e complemento não ficam salvos e precisam ser preenchidos de novo. Começar do zero apaga esses dados.",
+      actions: [
+        {
+          label: "Começar do zero",
+          onPress: () => {
+            discardDraft(ready!.usuarioId);
+            setReady({ ...ready!, saved: null, choice: "fresh" });
+          },
+        },
+        {
+          label: "Usar os dados salvos",
+          onPress: () =>
+            setReady({ ...ready!, saved: { ...saved!, stage: step }, choice: "keep" }),
+        },
+      ],
+    });
+  }
+  return (
+    <AnnounceForm
+      key={`${ready.usuarioId}-${ready.choice}`}
+      draft={ready.choice === "keep" ? saved : null}
+      startReviewed={ready.choice !== "pending"}
+      onReviewContinue={ready.choice === "pending" && saved ? ask : undefined}
+    />
+  );
+}
+
+function AnnounceForm({
+  draft,
+  startReviewed = false,
+  onReviewContinue,
+}: {
+  draft: AnnounceDraft | null;
+  /** A conferência dos dados do anunciante já foi feita (a pessoa escolheu entre o rascunho e começar do zero). */
+  startReviewed?: boolean;
+  /** Há rascunho salvo: o "Continuar" da conferência pergunta antes de abrir o formulário. */
+  onReviewContinue?: () => void;
+}) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const session = useSession();
-  const [stage, setStage] = useState(0);
-  const [values, setValues] = useState<Draft>(initial);
-  const [motors, setMotors] = useState<Record<string, string>[]>([]);
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [lotMode, setLotMode] = useState(false);
-  const [lotUnits, setLotUnits] = useState<LotUnit[]>(() => [
-    newLotUnit(),
-    newLotUnit(),
-  ]);
-  const [existing, setExisting] = useState<string[]>([]);
-  const [video, setVideo] = useState<UploadFile | null>(null);
-  const [videoNotice, setVideoNotice] = useState("");
-  const [report, setReport] = useState<UploadFile | null>(null);
+  const [stage, setStage] = useState(() => draft?.stage ?? 0);
+  const [values, setValues] = useState<Draft>(() =>
+    draft ? ({ ...initial, ...draft.values } as Draft) : initial,
+  );
+  const [motors, setMotors] = useState<Record<string, string>[]>(
+    () => draft?.motors ?? [],
+  );
+  const [photos, setPhotos] = useState<Photo[]>(() => draft?.photos ?? []);
+  const [lotMode, setLotMode] = useState(() => draft?.lotMode ?? false);
+  const [lotUnits, setLotUnits] = useState<LotUnit[]>(() =>
+    draft?.lotUnits.length ? draft.lotUnits : [newLotUnit(), newLotUnit()],
+  );
+  const [existing, setExisting] = useState<string[]>(
+    () => draft?.existing ?? [],
+  );
+  const [video, setVideo] = useState<UploadFile | null>(
+    () => draft?.video ?? null,
+  );
+  const [videoNotice, setVideoNotice] = useState(
+    () => draft?.videoNotice ?? "",
+  );
+  const [report, setReport] = useState<UploadFile | null>(
+    () => draft?.report ?? null,
+  );
   const [error, setError] = useState("");
   const [created, setCreated] = useState<string | null>(null);
   const [warning, setWarning] = useState("");
   const [createdVideoNote, setCreatedVideoNote] = useState("");
-  const [reference, setReference] = useState<FipeReference | null>(null);
+  const [reference, setReference] = useState<FipeReference | null>(
+    () => draft?.reference ?? null,
+  );
   const [fipeNotice, setFipeNotice] = useState("");
+  // Preenchimento pela placa (etapa 0): o que veio da consulta, para avisar e poder desfazer.
+  const [plateApplied, setPlateApplied] = useState<PlateSuggestion | null>(null);
+  const [plateFilledKeys, setPlateFilledKeys] = useState<string[]>([]);
   const [progress, setProgress] = useState<number | null>(null);
-  // Primeiro passo, como no site: conferir os dados do anunciante.
-  const [reviewed, setReviewed] = useState(false);
+  // Primeiro passo, como no site: conferir os dados do anunciante (já feito por quem retoma um rascunho).
+  const [reviewed, setReviewed] = useState(Boolean(draft) || startReviewed);
   const { width: windowWidth } = useWindowDimensions();
   /** Rolagem de cada página montada, para levar a pessoa até o campo pendente. */
   const pageScrolls = useRef(new Map<number, ScrollViewInstance>());
   /** Etapa visível em páginas, contínua durante o arraste e as transições. */
-  const position = useSharedValue(0);
+  const position = useSharedValue(draft?.stage ?? 0);
   const pageWidth = useSharedValue(windowWidth);
   const pagerFade = useSharedValue(1);
   const canForward = useSharedValue(false);
@@ -249,10 +366,10 @@ export function Announce() {
     };
   }, []);
   /** Etapa mais avançada já visitada: só etapas até ela ganham marca de pendência. */
-  const [furthest, setFurthest] = useState(0);
+  const [furthest, setFurthest] = useState(() => draft?.furthest ?? 0);
   /** Etapas deixadas para trás (ou todas, depois de tentar criar): mostram também os campos vazios. */
   const [revealed, setRevealed] = useState<ReadonlySet<number>>(
-    () => new Set(),
+    () => new Set(draft ? stages.map((_, index) => index).filter((index) => index < draft.stage) : []),
   );
   /** Campos que já perderam o foco: mostram erro de formato mesmo na primeira visita. */
   const [touched, setTouched] = useState<ReadonlySet<string>>(
@@ -266,6 +383,79 @@ export function Announce() {
   const fipeType = fipeTypes[tipo];
   const signedIn = session.status === "authenticated";
   const profile = useAccount();
+
+  // Rascunho no aparelho: cada mudança é gravada logo depois (e na hora em que o app vai para segundo plano), para
+  // resistir ao app fechado, encerrado pelo sistema ou sem conexão. Ao abrir "Anunciar" de novo, a pessoa escolhe.
+  const usuarioId = signedIn ? session.user.usuarioId : null;
+  const draftSince = useRef(draftEpoch());
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pendingDraft = useRef<{
+    usuarioId: string;
+    dirty: boolean;
+    data: Parameters<typeof saveDraft>[1];
+  } | null>(null);
+  const formMounted = useRef(true);
+  const [draftStatus, setDraftStatus] = useState<{ result: SaveResult; at: number } | null>(null);
+  const flushDraft = useCallback(() => {
+    clearTimeout(draftTimer.current);
+    const pending = pendingDraft.current;
+    pendingDraft.current = null;
+    if (!pending || draftSince.current !== draftEpoch()) return;
+    if (!pending.dirty) {
+      removeDraft(pending.usuarioId);
+      if (formMounted.current) setDraftStatus(null);
+      return;
+    }
+    saveDraft(pending.usuarioId, pending.data, draftSince.current).then((result) => {
+      if (result !== "stale" && formMounted.current)
+        setDraftStatus({ result, at: Date.now() });
+    });
+  }, []);
+  // Há algo a perder: qualquer campo preenchido, foto, motor, vídeo, laudo ou carro do lote.
+  const draftDirty =
+    photos.length > 0 ||
+    motors.length > 0 ||
+    existing.length > 0 ||
+    Boolean(video || report) ||
+    lotUnits.some((unit) => unit.cor || unit.placa || unit.quilometragem || unit.laudo) ||
+    Object.entries(values).some(
+      ([key, value]) =>
+        key !== "publicarAgora" && value !== "" && value !== (initial[key] ?? ""),
+    );
+  useEffect(() => {
+    if (!usuarioId || !reviewed || created) return;
+    pendingDraft.current = {
+      usuarioId,
+      dirty: draftDirty,
+      data: {
+        stage,
+        furthest,
+        values,
+        motors,
+        photos,
+        lotMode,
+        lotUnits,
+        existing,
+        video,
+        videoNotice,
+        report,
+        reference,
+      },
+    };
+    clearTimeout(draftTimer.current);
+    draftTimer.current = setTimeout(flushDraft, 400);
+  }, [usuarioId, reviewed, created, draftDirty, stage, furthest, values, motors, photos, lotMode, lotUnits, existing, video, videoNotice, report, reference, flushDraft]);
+  useEffect(() => {
+    formMounted.current = true;
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (next !== "active") flushDraft();
+    });
+    return () => {
+      subscription.remove();
+      formMounted.current = false;
+      flushDraft();
+    };
+  }, [flushDraft]);
 
   // Trocar zero km/seminovo troca a cotação FIPE pela da mesma versão, como no site.
   const syncingFipe = useFipeConditionSync({
@@ -352,8 +542,10 @@ export function Announce() {
   const requiredMain = technical.filter(
     (item) => item.required && !documentKeys.has(item.key),
   );
+  // A placa é pedida logo na etapa 0, junto da consulta que preenche o resto.
+  const plateItem = technical.find((item) => item.key === "placa");
   const requiredDocuments = technical.filter(
-    (item) => item.required && documentKeys.has(item.key),
+    (item) => item.required && documentKeys.has(item.key) && item.key !== "placa",
   );
   const optionalTechnical = technical.filter((item) => !item.required);
   // Dicas de qualidade: contam só o que já foi preenchido; a relevância é calculada no servidor.
@@ -496,6 +688,7 @@ export function Announce() {
       return { id: result.id, warning: warnings.join(" "), videoNote };
     },
     onSuccess: ({ id, warning: resultWarning, videoNote }) => {
+      if (session.status === "authenticated") discardDraft(session.user.usuarioId);
       setCreated(id);
       setWarning(resultWarning);
       setCreatedVideoNote(videoNote);
@@ -544,6 +737,53 @@ export function Announce() {
         anoModelo: "",
       }));
     }
+  }
+  /** Preenche o formulário com o que a placa trouxe; a FIPE vinculada pelo código entra como se escolhida na lista. */
+  function applyPlateSuggestion(suggestion: PlateSuggestion) {
+    const nextTipo =
+      suggestion.tipoVeiculo && plateVehicleTypes.includes(suggestion.tipoVeiculo)
+        ? suggestion.tipoVeiculo
+        : tipo;
+    const filled = plateSuggestionValues(suggestion, nextTipo);
+    const fipe = suggestion.fipe;
+    setError("");
+    setExisting([]);
+    setReference(fipe);
+    setFipeNotice("");
+    setValues((current) => {
+      const base =
+        current.tipoVeiculo === nextTipo
+          ? current
+          : { ...current, tipoVeiculo: nextTipo, fabricante: "", modelo: "", versao: "", anoModelo: "" };
+      return {
+        ...base,
+        ...filled,
+        // Veículo com placa não é zero km.
+        condicao: base.condicao && base.condicao !== "ZERO_KM" ? base.condicao : "USADO",
+        ...(fipe
+          ? {
+              fabricante: fipe.marca,
+              modelo: fipe.modelo,
+              versao: fipe.modelo,
+              anoModelo: String(fipe.anoModelo),
+              [`${nextTipo}.combustivel`]: fipe.combustivel,
+            }
+          : {}),
+      };
+    });
+    setPlateApplied(suggestion);
+    setPlateFilledKeys(Object.keys(filled).filter((key) => !key.endsWith(".placa")));
+  }
+  /** Desfaz o preenchimento pela placa (mantém a placa) para a pessoa preencher tudo à mão. */
+  function clearPlateSuggestion() {
+    setValues((current) => ({
+      ...current,
+      ...Object.fromEntries(plateFilledKeys.map((key) => [key, ""])),
+    }));
+    setReference(null);
+    setFipeNotice("");
+    setPlateApplied(null);
+    setPlateFilledKeys([]);
   }
   function choice(key: string, options: { value: string; label: string }[]) {
     return (
@@ -780,6 +1020,10 @@ export function Announce() {
       return true;
     };
     const nextYear = new Date().getFullYear() + 1;
+    if (current === 0 && plateItem) {
+      if (checkField(plateItem, `${tipo}.`) && !platePattern.test(values[`${tipo}.placa`]))
+        fail(`${tipo}.placa`, "placa", "Use o padrão ABC1D23.");
+    }
     if (current === 1) {
       if (manualVehicle) {
         checkField(brandField);
@@ -1261,6 +1505,24 @@ export function Announce() {
       <>
         {index === 0 ? (
           <View style={styles.section}>
+            {plateItem ? (
+              <PlatePrefillCard
+                plateField={
+                  <View ref={anchor(`${tipo}.placa`)}>
+                    <PlateField
+                      value={values[`${tipo}.placa`] || ""}
+                      onChangeText={(value) => update(`${tipo}.placa`, value)}
+                      {...fieldProps(`${tipo}.placa`)}
+                    />
+                  </View>
+                }
+                plate={values[`${tipo}.placa`] || ""}
+                applied={plateApplied}
+                onSuggestion={applyPlateSuggestion}
+                onClear={clearPlateSuggestion}
+                onManual={advance}
+              />
+            ) : null}
             <AppText variant="heading">O que você vai anunciar?</AppText>
             {profile.isError ? (
               <Notice
@@ -1331,6 +1593,7 @@ export function Announce() {
             {fipeType && edition.data ? (
               <FipeSelector
                 key={tipo}
+                linkOnly
                 tipo={fipeType}
                 zeroKm={values.condicao === "ZERO_KM"}
                 reference={reference}
@@ -1945,7 +2208,7 @@ export function Announce() {
         loading={profile.isPending}
         error={profile.isError ? profile.error.message : null}
         onRetry={() => profile.refetch()}
-        onContinue={() => setReviewed(true)}
+        onContinue={onReviewContinue ?? (() => setReviewed(true))}
       />
     );
   if (created)
@@ -2031,6 +2294,23 @@ export function Announce() {
             </View>
           ) : null}
         </View>
+        {draftStatus?.result === "saved" ? (
+          <View style={styles.pendingLegend}>
+            <Check size={14} color={colors.muted} strokeWidth={2.4} />
+            <AppText variant="caption" color="muted" style={styles.flex}>
+              Salvo no aparelho às{" "}
+              {new Date(draftStatus.at).toLocaleTimeString("pt-BR", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </AppText>
+          </View>
+        ) : draftStatus?.result === "failed" ? (
+          <AppText variant="caption" color="red">
+            Não foi possível guardar tudo no aparelho. Evite fechar o app até
+            criar o anúncio.
+          </AppText>
+        ) : null}
       </View>
       <View
         style={styles.pager}
@@ -2222,4 +2502,5 @@ const styles = StyleSheet.create({
   photo: { flexDirection: "row", alignItems: "center", gap: space.md },
   thumbnail: { width: 88, height: 88, borderRadius: radius.md },
   success: { padding: space.lg, justifyContent: "center", gap: space.lg },
+  loading: { alignItems: "center", justifyContent: "center" },
 });

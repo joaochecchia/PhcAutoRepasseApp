@@ -93,7 +93,8 @@ export type AdAddress = {
 export type AdFipeSnapshot = {
   referenciaId: string;
   codigo: string;
-  valorCentavos: number;
+  /** Nulo na edição do anúncio: o valor só aparece no anúncio publicado. */
+  valorCentavos: number | null;
   mesReferencia: string;
   modelo: string;
   fonte: string;

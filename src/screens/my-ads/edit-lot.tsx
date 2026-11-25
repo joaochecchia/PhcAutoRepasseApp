@@ -32,7 +32,7 @@ import { adPayload, type Draft } from '@/screens/announce/payload';
 import { adPatch, adToDraft, type Motors } from './edit-draft';
 import { PhotoManager } from './edit-photos';
 import { moderationRefetch } from '@/components/photo-moderation';
-import { plateVideoWarning, videoSentMessage } from '@/utils/video-notice';
+import { plateVideoWarning, videoFailed, videoPending, videoSentMessage, videoStatusText } from '@/utils/video-notice';
 import { StatusPill } from './my-ad-card';
 
 const MAX_LOT_CARS = 50;
@@ -99,9 +99,9 @@ function LotForm({ initialLot, template }: { initialLot: Lot; template: AdForEdi
     queryKey: ['lot', initialLot.id, true],
     queryFn: ({ signal }) => fetchLot(initialLot.id, signal, true),
     initialData: initialLot,
-    // Foto nova nasce "Em análise" e o vídeo passa pela compressão: recarrega até o servidor decidir.
+    // Foto nova nasce "Em análise" e o vídeo passa pela compressão e pela análise: recarrega até o servidor decidir.
     refetchInterval: (query) =>
-      query.state.data?.video?.status === 'PROCESSANDO' ? 5000 : moderationRefetch(query.state.data?.fotos),
+      videoPending(query.state.data?.video?.status) ? 5000 : moderationRefetch(query.state.data?.fotos),
   });
   const lot = lotQuery.data;
   const lotCars = lot.carros ?? [];
@@ -502,22 +502,19 @@ function LotForm({ initialLot, template }: { initialLot: Lot; template: AdForEdi
           />
         </Section>
 
-        <Section title="Vídeo do lote" note="Aparece em todos os carros, junto das fotos, depois da compressão. Salvo na hora.">
+        <Section title="Vídeo do lote" note="Aparece em todos os carros, junto das fotos, depois da compressão e de uma análise rápida. Salvo na hora.">
           <View style={[styles.media, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.inline}>
               <Film size={20} color={colors.muted} />
               <View style={styles.flex}>
                 <AppText variant="bodyStrong">{lot.video ? 'Vídeo enviado' : 'Nenhum vídeo enviado'}</AppText>
-                <AppText variant="caption" color={lot.video?.status === 'FALHOU' ? 'red' : 'muted'}>
+                <AppText variant="caption" color={videoFailed(lot.video?.status) ? 'red' : 'muted'}>
                   {!lot.video
                     ? `Até 30 s mostrando os carros (os mais longos são cortados). ${plateVideoWarning}`
-                    : lot.video.status === 'PROCESSANDO'
-                      ? 'Comprimindo o vídeo em HD. Depois ele aparece no lote; você pode sair desta tela.'
-                      : lot.video.status === 'FALHOU'
-                        ? `${lot.video.mensagemErro || 'Não foi possível processar o vídeo.'} Envie outro vídeo.`
-                        : `${lot.video.duracaoSegundos ?? ''}s · ${Math.max(1, Math.round(lot.video.tamanhoBytes / 1024 / 1024))} MB`}
+                    : videoStatusText(lot.video, 'lote',
+                        `${lot.video.duracaoSegundos ?? ''}s · ${Math.max(1, Math.round(lot.video.tamanhoBytes / 1024 / 1024))} MB`)}
                 </AppText>
-                {lot.video?.cortado ? (
+                {lot.video?.cortado && lot.video.status !== 'REJEITADO' ? (
                   <AppText variant="caption" color="muted">
                     Só os primeiros 30 segundos foram guardados.
                   </AppText>

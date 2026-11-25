@@ -3,6 +3,10 @@ import { useEffect, useRef } from 'react';
 import { announceApi, type FipeReference } from '@/api/announce';
 import { formatCents } from '@/utils/format';
 
+/** No cadastro a referência chega sem o valor; a mensagem só cita o preço quando ele existe. */
+const priceSuffix = (reference: FipeReference) =>
+  reference.valorCentavos == null ? '' : `: ${formatCents(reference.valorCentavos)}`;
+
 type Options = {
   condicao: string;
   anoModelo: string;
@@ -43,7 +47,7 @@ export function useFipeConditionSync({ condicao, anoModelo, veiculo, reference, 
     parked.current = null;
     callbacks.current.onReference(saved.reference);
     callbacks.current.onNotice(
-      `Referência FIPE ${zeroKm ? label : `de ${label} ${saved.reference.anoModelo}`} de volta: ${formatCents(saved.reference.valorCentavos)}.`,
+      `Referência FIPE ${zeroKm ? label : `de ${label} ${saved.reference.anoModelo}`} de volta${priceSuffix(saved.reference)}.`,
     );
   }, [reference, identity, condicao, zeroKm, label]);
 
@@ -66,7 +70,7 @@ export function useFipeConditionSync({ condicao, anoModelo, veiculo, reference, 
         if (controller.signal.aborted) return;
         callbacks.current.onReference(equivalent);
         callbacks.current.onNotice(
-          `Referência FIPE trocada para a cotação ${zeroKm ? label : `de ${label} ${ano}`}: ${formatCents(equivalent.valorCentavos)}.`,
+          `Referência FIPE trocada para a cotação ${zeroKm ? label : `de ${label} ${ano}`}${priceSuffix(equivalent)}.`,
         );
       })
       .catch((reason: unknown) => {

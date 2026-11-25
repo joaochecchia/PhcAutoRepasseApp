@@ -39,6 +39,11 @@ type Props = {
   zeroKmAsYear?: boolean;
   /** A tela mostra o resultado do seu jeito (Tabela FIPE). */
   hideReference?: boolean;
+  /**
+   * Cadastro e edição de anúncio: escolher o modelo já vincula a FIPE, sem gastar consulta do plano e sem mostrar o
+   * valor (ele aparece no anúncio publicado). Sem isso, é a consulta paga da Tabela FIPE.
+   */
+  linkOnly?: boolean;
 };
 
 export function FipeSelector({
@@ -51,6 +56,7 @@ export function FipeSelector({
   onClear,
   zeroKmAsYear = false,
   hideReference = false,
+  linkOnly = false,
 }: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -73,7 +79,7 @@ export function FipeSelector({
   const quota = useQuery({
     queryKey: ["fipe-quota-for-ad"],
     queryFn: announceApi.fipeQuota,
-    enabled: Boolean(model && !reference),
+    enabled: Boolean(model && !reference && !linkOnly),
     staleTime: 0,
   });
   const params =
@@ -133,25 +139,26 @@ export function FipeSelector({
     } else if (open === "model") {
       setModel(item);
       onClear();
+      if (linkOnly) resolve(item);
     }
   }
-  async function resolve() {
-    if (!brand || !model || !model.anoId || !edition.data?.mesReferencia) {
+  async function resolve(chosen = model) {
+    if (!brand || !chosen || !chosen.anoId || !edition.data?.mesReferencia) {
       setError("Esta versão não tem cotação FIPE disponível.");
       return;
     }
-    if (quota.data && !quota.data.ilimitado && quota.data.restantes === 0) {
+    if (!linkOnly && quota.data && !quota.data.ilimitado && quota.data.restantes === 0) {
       setError("Suas consultas FIPE do mês acabaram.");
       return;
     }
     setResolving(true);
     setError("");
     try {
-      const result = await announceApi.fipeReference({
+      const result = await (linkOnly ? announceApi.fipeLink : announceApi.fipeReference)({
         tipo,
         marcaId: brand.codigo,
-        modeloId: model.codigo,
-        anoId: model.anoId,
+        modeloId: chosen.codigo,
+        anoId: chosen.anoId,
         referencia: Number(edition.data.codigo),
         mesReferencia: edition.data.mesReferencia,
       });
@@ -161,7 +168,9 @@ export function FipeSelector({
       setError(
         reason instanceof Error
           ? reason.message
-          : "Não foi possível consultar a FIPE. Tente de novo.",
+          : linkOnly
+            ? "Não foi possível vincular a FIPE. Escolha o modelo de novo."
+            : "Não foi possível consultar a FIPE. Tente de novo.",
       );
     } finally {
       setResolving(false);
@@ -188,8 +197,9 @@ export function FipeSelector({
       {edition.data ? (
         <>
           <AppText color="muted">
-            Escolha uma opção por vez. A cotação será consultada só após sua
-            confirmação.
+            {linkOnly
+              ? "Escolha marca, ano e modelo. A FIPE é vinculada ao anúncio e o valor aparece no anúncio publicado."
+              : "Escolha uma opção por vez. A cotação será consultada só após sua confirmação."}
           </AppText>
           <SelectRow
             label="Marca"
@@ -213,7 +223,13 @@ export function FipeSelector({
               onPress={() => show("model")}
             />
           ) : null}
-          {model && !reference ? (
+          {linkOnly && resolving ? (
+            <View style={styles.linking} accessibilityLiveRegion="polite">
+              <ActivityIndicator color={colors.red} />
+              <AppText color="muted">Vinculando a referência FIPE…</AppText>
+            </View>
+          ) : null}
+          {model && !reference && !linkOnly ? (
             <View
               style={[
                 styles.confirm,
@@ -270,11 +286,12 @@ export function FipeSelector({
               </AppText>
               <AppText>{reference.modelo}</AppText>
               <AppText color="deal">
-                {new Intl.NumberFormat("pt-BR", {
-                  style: "currency",
-                  currency: "BRL",
-                }).format(reference.valorCentavos / 100)}{" "}
-                · {reference.mesReferencia}
+                {reference.valorCentavos == null
+                  ? `Referência de ${reference.mesReferencia}. O valor e a comparação com o seu preço aparecem no anúncio publicado.`
+                  : `${new Intl.NumberFormat("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
+                    }).format(reference.valorCentavos / 100)} · ${reference.mesReferencia}`}
               </AppText>
             </View>
           ) : null}
@@ -427,6 +444,7 @@ function SelectRow({
 }
 
 const styles = StyleSheet.create({
+  linking: { flexDirection: "row", alignItems: "center", gap: space.sm },
   root: { gap: space.md },
   row: {
     minHeight: 68,
