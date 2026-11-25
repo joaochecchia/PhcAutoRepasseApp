@@ -22,6 +22,7 @@ import {
 import { Skeleton } from '@/components/skeleton';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, space } from '@/theme';
+import { ensureCameraPermission } from '@/utils/permission';
 import { preparePhoto } from '@/utils/prepare-photo';
 
 const MAX_PHOTOS = 8;
@@ -150,11 +151,7 @@ export function PhotoManager({ photos: source, loading, failed, retrying, onRetr
         {
           label: 'Tirar foto',
           onPress: async () => {
-            const permission = await ImagePicker.requestCameraPermissionsAsync();
-            if (!permission.granted) {
-              setError('Permita o uso da câmera para fotografar o veículo.');
-              return;
-            }
+            if (!(await ensureCameraPermission('fotografar o veículo'))) return;
             const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], exif: false, quality: 1 });
             if (!result.canceled) await replace(photo, result.assets[0]);
           },
@@ -176,11 +173,7 @@ export function PhotoManager({ photos: source, loading, failed, retrying, onRetr
   }
 
   async function fromCamera() {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      setError('Permita o uso da câmera para fotografar o veículo.');
-      return;
-    }
+    if (!(await ensureCameraPermission('fotografar o veículo'))) return;
     const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], exif: false, quality: 1 });
     if (!result.canceled) await send(result.assets);
   }

@@ -10,6 +10,7 @@ import { Button } from '@/components/button';
 import { showDialog } from '@/components/dialog';
 import { useTheme } from '@/hooks/use-theme';
 import { space } from '@/theme';
+import { ensureCameraPermission } from '@/utils/permission';
 import { preparePhoto } from '@/utils/prepare-photo';
 
 /** Foto redonda da conta; sem foto (ou se ela não carregar), o ícone de pessoa. */
@@ -71,8 +72,7 @@ export function ProfilePhotoPicker({
         {
           label: 'Tirar foto',
           onPress: async () => {
-            const permission = await ImagePicker.requestCameraPermissionsAsync();
-            if (!permission.granted) return setError('Permita o uso da câmera nas configurações para tirar a foto.');
+            if (!(await ensureCameraPermission('tirar sua foto de perfil'))) return;
             apply(await ImagePicker.launchCameraAsync(options));
           },
         },

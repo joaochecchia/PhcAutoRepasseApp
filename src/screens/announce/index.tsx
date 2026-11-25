@@ -1,21 +1,42 @@
+import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   KeyboardAvoidingView,
   Keyboard,
   Platform,
   Pressable,
-  ScrollView,
   type ScrollViewInstance,
+  type StyleProp,
   StyleSheet,
+  useWindowDimensions,
   View,
+  type ViewInstance,
+  type ViewStyle,
 } from "react-native";
-import { Check } from "lucide-react-native";
+import { Check, ChevronsLeftRight } from "lucide-react-native";
+import {
+  GestureDetector,
+  ScrollView,
+  usePanGesture,
+} from "react-native-gesture-handler";
+import Animated, {
+  cancelAnimation,
+  ReduceMotion,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { findAddressByCep } from "@/api/viacep";
@@ -25,6 +46,7 @@ import {
   type UploadFile,
 } from "@/api/announce";
 import { isUploadInterrupted } from "@/api/client";
+import { secureStorage } from "@/api/secure-storage";
 import { myAdsApi } from "@/api/my-ads";
 import { AdQualityTips } from "@/components/ad-quality-tips";
 import { AppText } from "@/components/app-text";
@@ -36,9 +58,10 @@ import { useSession } from "@/hooks/use-session";
 import { useFipeConditionSync } from "@/hooks/use-fipe-condition-sync";
 import { cleanMasked, displayMasked, maskInput } from "@/utils/masks";
 import { useTheme } from "@/hooks/use-theme";
-import { radius, space, touch } from "@/theme";
+import { motion, radius, space, touch } from "@/theme";
 import { adPayload, type Draft } from "./payload";
 import { ChoiceRow } from "@/components/choice-row";
+import { ensureCameraPermission } from "@/utils/permission";
 import { preparePhoto } from "@/utils/prepare-photo";
 import {
   plateVideoWarning,
@@ -56,6 +79,14 @@ import {
   vehicleTypes,
   type Field,
 } from "./fields";
+import {
+  emptyCheck,
+  errorCount,
+  shortName,
+  summarize,
+  type StageCheck,
+} from "./stage-check";
+import { ProgressSegment, resist, StagePage } from "./stage-pager";
 
 const stages = [
   "Tipo de anúncio",
@@ -68,6 +99,72 @@ const stages = [
   "Dados opcionais",
   "Conferência",
 ];
+const lastStage = stages.length - 1;
+/** Marca neste aparelho que a pessoa já trocou de etapa arrastando: a dica de deslizar some. */
+const swipeLearnedKey = "anuncio.deslize-aprendido";
+/** Tipo e veículo definem o resto do formulário: só elas travam o avanço. */
+const lockedStages = 2;
+const brandField: Field = {
+  key: "fabricante",
+  label: "Marca / fabricante",
+  required: true,
+  maxLength: 100,
+};
+const modelField: Field = {
+  key: "modelo",
+  label: "Modelo",
+  required: true,
+  maxLength: 250,
+};
+const modelYearField: Field = {
+  key: "anoModelo",
+  label: "Ano do modelo",
+  required: true,
+  kind: "number",
+};
+const fabricationYearField: Field = {
+  key: "anoFabricacao",
+  label: "Ano de fabricação",
+  required: true,
+  kind: "number",
+};
+const colorField: Field = {
+  key: "cor",
+  label: "Cor",
+  required: true,
+  maxLength: 60,
+};
+const auctionField: Field = {
+  key: "historicoLeilao",
+  label: "Passou por leilão?",
+  kind: "boolean",
+  required: true,
+};
+const accidentField: Field = {
+  key: "historicoSinistro",
+  label: "Teve sinistro?",
+  kind: "boolean",
+  required: true,
+};
+const titleField: Field = {
+  key: "titulo",
+  label: "Título do anúncio",
+  required: true,
+  maxLength: 180,
+};
+const priceField: Field = {
+  key: "precoReais",
+  label: "Preço (R$)",
+  required: true,
+  mask: "money",
+};
+const descriptionField: Field = {
+  key: "descricao",
+  label: "Descrição",
+  maxLength: 10000,
+  multiline: true,
+};
+const platePattern = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/i;
 const initial: Draft = {
   tipoVeiculo: "CARRO",
   condicao: "USADO",
@@ -126,7 +223,45 @@ export function Announce() {
   const [progress, setProgress] = useState<number | null>(null);
   // Primeiro passo, como no site: conferir os dados do anunciante.
   const [reviewed, setReviewed] = useState(false);
-  const scrollRef = useRef<ScrollViewInstance>(null);
+  const { width: windowWidth } = useWindowDimensions();
+  /** Rolagem de cada página montada, para levar a pessoa até o campo pendente. */
+  const pageScrolls = useRef(new Map<number, ScrollViewInstance>());
+  /** Etapa visível em páginas, contínua durante o arraste e as transições. */
+  const position = useSharedValue(0);
+  const pageWidth = useSharedValue(windowWidth);
+  const pagerFade = useSharedValue(1);
+  const canForward = useSharedValue(false);
+  const canBack = useSharedValue(false);
+  const dragStart = useSharedValue(0);
+  const dragOrigin = useSharedValue(0);
+  /** Etapa de onde partiu um salto de mais de uma página (ex.: "Criar anúncio" com pendência). */
+  const jumpFrom = useRef<number | undefined>(undefined);
+  const pagerStyle = useAnimatedStyle(() => ({ opacity: pagerFade.get() }));
+  /** null enquanto lê o aparelho; false mostra a dica e a espiada. */
+  const [swipeLearned, setSwipeLearned] = useState<boolean | null>(null);
+  useEffect(() => {
+    let active = true;
+    secureStorage.get(swipeLearnedKey).then((value) => {
+      if (active) setSwipeLearned(value === "1");
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  /** Etapa mais avançada já visitada: só etapas até ela ganham marca de pendência. */
+  const [furthest, setFurthest] = useState(0);
+  /** Etapas deixadas para trás (ou todas, depois de tentar criar): mostram também os campos vazios. */
+  const [revealed, setRevealed] = useState<ReadonlySet<number>>(
+    () => new Set(),
+  );
+  /** Campos que já perderam o foco: mostram erro de formato mesmo na primeira visita. */
+  const [touched, setTouched] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const anchors = useRef(new Map<string, ViewInstance>());
+  const scrollTarget = useRef<string | null | undefined>(undefined);
+  const [scrollRequest, setScrollRequest] = useState(0);
+  const reduceMotion = useReducedMotion();
   const tipo = values.tipoVeiculo;
   const fipeType = fipeTypes[tipo];
   const signedIn = session.status === "authenticated";
@@ -182,6 +317,10 @@ export function Announce() {
     enabled: signedIn && !!fipeType,
   });
   const zeroKm = values.condicao === "ZERO_KM";
+  // Sem FIPE para o tipo, ou com a FIPE fora do ar, marca, modelo e ano são digitados na etapa 1.
+  const manualVehicle = !fipeType || (!edition.data && !edition.isPending);
+  // Zero km com FIPE: a cotação não tem ano, então o ano do modelo é pedido nos dados principais.
+  const modelYearInMain = Boolean(fipeType && edition.data && zeroKm);
   const electric =
     (tipo === "CARRO" || tipo === "CAMINHONETE") &&
     (values[`${tipo}.combustivel`] || "")
@@ -420,21 +559,37 @@ export function Announce() {
   ) : fipeNotice ? (
     <Notice message={fipeNotice} />
   ) : null;
-  function field(item: Field, prefix = "") {
+  function field(item: Field, prefix = "", style?: StyleProp<ViewStyle>) {
+    const key = `${prefix}${item.key}`;
     return (
-      <AdField
-        key={`${prefix}${item.key}`}
-        item={item}
-        prefix={prefix}
-        values={values}
-        suggestions={suggestionsFor(
-          catalog.data,
-          tipo,
-          values.fabricante,
-          item.key,
-        )}
-        onChange={update}
-      />
+      <View key={key} ref={anchor(key)} style={style}>
+        <AdField
+          item={item}
+          prefix={prefix}
+          values={values}
+          suggestions={suggestionsFor(
+            catalog.data,
+            tipo,
+            values.fabricante,
+            item.key,
+          )}
+          onChange={update}
+          inline={item.kind === "boolean"}
+          {...fieldProps(key)}
+        />
+      </View>
+    );
+  }
+  function editLotUnit(index: number, patch: Partial<LotUnit>) {
+    setError("");
+    setLotUnits((current) =>
+      current.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    );
+  }
+  function editMotor(index: number, key: string, value: string) {
+    setError("");
+    setMotors((current) =>
+      current.map((row, i) => (i === index ? { ...row, [key]: value } : row)),
     );
   }
   async function lookupCep() {
@@ -482,11 +637,7 @@ export function Announce() {
   }
   async function takePhoto() {
     setError("");
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      setError("Permita o uso da câmera para fotografar o veículo.");
-      return;
-    }
+    if (!(await ensureCameraPermission("fotografar o veículo"))) return;
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ["images"],
       exif: false,
@@ -580,251 +731,535 @@ export function Announce() {
       );
     setError("");
   }
-  function validate(current: number): string {
-    const checkField = (item: Field, prefix = "") => {
-      const raw = values[`${prefix}${item.key}`] || "";
-      if (item.required && !raw.trim())
-        return `Preencha ${item.label.toLowerCase()}.`;
+  /** Regras de formato de uma etapa, campo a campo. As regras de negócio ficam no backend. */
+  function validate(current: number): StageCheck {
+    const check = emptyCheck();
+    const fail = (key: string, name: string, text: string, missing = false) => {
+      if (check.fields[key]) return;
+      check.fields[key] = text;
+      check.names[key] = name;
+      if (missing) check.missing.add(key);
+    };
+    /** Confere obrigatório, número e tamanho. Devolve true quando o campo está preenchido e válido. */
+    const checkField = (
+      item: Field,
+      prefix = "",
+      raw = values[`${prefix}${item.key}`] || "",
+      key = `${prefix}${item.key}`,
+      name = shortName(item.label),
+    ) => {
+      if (!raw.trim()) {
+        if (item.required)
+          fail(
+            key,
+            name,
+            item.kind === "boolean" ? "Escolha Sim ou Não." : "Preencha este campo.",
+            true,
+          );
+        return false;
+      }
       if (
-        raw &&
         item.kind === "number" &&
         (!/^\d+(?:[,.]\d+)?$/.test(raw) ||
           Number(raw.replace(",", ".")) <
             (["quilometragem", "horimetro", "horasUso"].includes(item.key)
               ? 0
               : 1))
-      )
-        return `${item.label}: informe um número válido.`;
-      if (item.maxLength && raw.length > item.maxLength)
-        return `${item.label}: use até ${item.maxLength} caracteres.`;
-      return "";
+      ) {
+        fail(key, name, "Informe um número válido.");
+        return false;
+      }
+      if (item.maxLength && raw.length > item.maxLength) {
+        fail(
+          key,
+          name,
+          `Use até ${item.maxLength.toLocaleString("pt-BR")} caracteres.`,
+        );
+        return false;
+      }
+      return true;
     };
+    const nextYear = new Date().getFullYear() + 1;
     if (current === 1) {
-      if (fipeType && edition.isPending)
-        return "Aguarde a tabela FIPE carregar.";
-      if (syncingFipe) return "Aguarde a atualização da referência FIPE.";
-      if (!values.fabricante?.trim() || !values.modelo?.trim())
-        return "Escolha a marca e o modelo.";
-      if (fipeType && edition.data && !reference)
-        return "Confirme a consulta FIPE para continuar.";
-      if ((!fipeType || edition.isError) && !values.anoModelo?.trim())
-        return "Informe o ano do modelo.";
+      if (manualVehicle) {
+        checkField(brandField);
+        checkField(modelField);
+        if (checkField(modelYearField)) {
+          const model = Number(values.anoModelo);
+          if (model < 1900 || model > nextYear)
+            fail("anoModelo", "ano do modelo", `Use um ano entre 1900 e ${nextYear}.`);
+        }
+      } else if (edition.data) {
+        if (!values.fabricante?.trim() || !values.modelo?.trim())
+          check.general.push("Escolha a marca e o modelo.");
+        else if (!reference)
+          check.general.push("Confirme a consulta FIPE para continuar.");
+      }
     }
     if (current === 2) {
-      for (const item of [
-        {
-          key: "anoFabricacao",
-          label: "Ano de fabricação",
-          required: true,
-          kind: "number",
-        } as Field,
-        ...(zeroKm
-          ? [
-              {
-                key: "anoModelo",
-                label: "Ano do modelo",
-                required: true,
-                kind: "number",
-              } as Field,
-            ]
-          : []),
-        { key: "cor", label: "Cor", required: true } as Field,
-      ]) {
-        const problem = checkField(item);
-        if (problem) return problem;
-      }
+      const fabricationOk = checkField(fabricationYearField);
+      const modelOk = modelYearInMain
+        ? checkField(modelYearField)
+        : /^\d+$/.test(values.anoModelo || "");
       const fabrication = Number(values.anoFabricacao),
         model = Number(values.anoModelo);
-      if (
-        fabrication < 1900 ||
-        model < fabrication ||
-        model > fabrication + 1 ||
-        model > new Date().getFullYear() + 1
-      )
-        return "Confira os anos de fabricação e modelo.";
+      if (fabricationOk && fabrication < 1900)
+        fail("anoFabricacao", "ano de fabricação", "Use um ano a partir de 1900.");
+      if (modelOk && modelYearInMain && (model < 1900 || model > nextYear))
+        fail("anoModelo", "ano do modelo", `Use um ano entre 1900 e ${nextYear}.`);
+      if (fabricationOk && modelOk && (model < fabrication || model > fabrication + 1))
+        fail(
+          "anoFabricacao",
+          "ano de fabricação",
+          model >= 1900
+            ? `Para modelo ${model}, use ${model - 1} ou ${model}.`
+            : "Confira os anos de fabricação e modelo.",
+        );
+      // O ano do modelo veio da etapa 1 ou da FIPE; se estiver fora do padrão, avisa aqui como antes.
+      if (fabricationOk && !modelYearInMain && (!modelOk || model > nextYear))
+        fail(
+          "anoFabricacao",
+          "ano de fabricação",
+          "Confira os anos de fabricação e modelo.",
+        );
+      checkField(colorField);
       for (const item of requiredMain) {
-        const problem = checkField(item, `${tipo}.`);
-        if (problem) return problem;
+        const ok = checkField(item, `${tipo}.`);
+        if (
+          ok &&
+          item.key === "motorizacao" &&
+          ["CARRO", "CAMINHONETE"].includes(tipo) &&
+          !electric &&
+          !/^[0-9]{1,2}[.,][0-9]{1,2}$/.test(values[`${tipo}.motorizacao`])
+        )
+          fail(
+            `${tipo}.motorizacao`,
+            "motorização",
+            "Use litros, como 1.0 ou 2.0.",
+          );
       }
-      if (
-        ["CARRO", "CAMINHONETE"].includes(tipo) &&
-        !electric &&
-        values[`${tipo}.motorizacao`] &&
-        !/^[0-9]{1,2}[.,][0-9]{1,2}$/.test(values[`${tipo}.motorizacao`])
-      )
-        return "Motorização: use litros, como 1.0 ou 2.0.";
     }
     if (current === 3) {
-      if (!values.historicoLeilao || !values.historicoSinistro)
-        return "Informe o histórico de leilão e sinistro.";
+      checkField(auctionField);
+      checkField(accidentField);
       for (const item of requiredDocuments) {
-        const problem = checkField(item, `${tipo}.`);
-        if (problem) return problem;
-      }
-      if (
-        !zeroKm &&
-        requiredDocuments.some((item) => item.key === "placa") &&
-        !/^[A-Za-z]{3}[0-9][A-Za-z0-9][0-9]{2}$/.test(
-          values[`${tipo}.placa`] || "",
+        const ok = checkField(item, `${tipo}.`);
+        if (
+          ok &&
+          item.key === "placa" &&
+          !zeroKm &&
+          !platePattern.test(values[`${tipo}.placa`])
         )
-      )
-        return "Informe a placa no padrão ABC1D23.";
+          fail(`${tipo}.placa`, "placa", "Use o padrão ABC1D23.");
+      }
     }
     if (current === 4) {
       for (const item of addressFields.filter((item) => item.required)) {
-        const problem = checkField(item, "endereco.");
-        if (problem) return problem;
+        const ok = checkField(item, "endereco.");
+        const raw = values[`endereco.${item.key}`] || "";
+        if (ok && item.key === "cep" && raw.replace(/\D/g, "").length !== 8)
+          fail("endereco.cep", "CEP", "Informe os 8 números do CEP.");
+        if (ok && item.key === "uf" && !/^[A-Za-z]{2}$/.test(raw))
+          fail("endereco.uf", "estado", "Use a sigla com 2 letras, como SP.");
       }
-      if ((values["endereco.cep"] || "").replace(/\D/g, "").length !== 8)
-        return "Informe os 8 números do CEP.";
-      if (!/^[A-Za-z]{2}$/.test(values["endereco.uf"] || ""))
-        return "Informe a sigla do estado com duas letras.";
     }
     if (current === 5 && photos.length === 0)
-      return "Adicione pelo menos uma foto do veículo.";
+      check.general.push("Adicione pelo menos uma foto do veículo.");
     if (current === 6) {
-      if (!values.titulo?.trim() || values.titulo.length > 180)
-        return "Informe um título de até 180 caracteres.";
+      checkField(titleField);
       if (
         values.tipoPreco === "FIXO" &&
-        !(Number(values.precoReais?.replace(/\./g, "").replace(",", ".")) > 0)
+        checkField(priceField) &&
+        !(Number(values.precoReais.replace(/\./g, "").replace(",", ".")) > 0)
       )
-        return "Informe um preço maior que zero.";
+        fail("precoReais", "preço", "Informe um preço maior que zero.");
       if (
         values.contatoNaoDivulgar !== "true" &&
         values.contatoWhatsapp !== "true" &&
         values.contatoLigacao !== "true"
       )
-        return "Escolha pelo menos um meio de contato.";
+        check.general.push("Escolha pelo menos um meio de contato.");
       if (asLot) {
         if (lotUnits.length + existing.length > 50)
-          return "O lote aceita no máximo 50 carros.";
+          check.general.push("O lote aceita no máximo 50 carros.");
         const plates = new Set<string>();
         for (const [index, unit] of lotUnits.entries()) {
-          if (!unit.cor.trim()) return `Carro ${index + 1}: informe a cor.`;
-          if (!zeroKm) {
-            const plate = unit.placa.trim().toUpperCase();
-            if (
-              !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(plate) ||
-              plates.has(plate)
-            )
-              return `Carro ${index + 1}: confira a placa.`;
-            plates.add(plate);
-            if (!/^\d+$/.test(unit.quilometragem))
-              return `Carro ${index + 1}: informe a quilometragem.`;
-          }
+          const car = `carro ${index + 1}`;
+          const key = `lote.${unit.key}`;
+          if (!unit.cor.trim()) fail(`${key}.cor`, `cor do ${car}`, "Preencha este campo.", true);
+          if (zeroKm) continue;
+          const plate = unit.placa.trim().toUpperCase();
+          if (!plate) fail(`${key}.placa`, `placa do ${car}`, "Preencha este campo.", true);
+          else if (!platePattern.test(plate))
+            fail(`${key}.placa`, `placa do ${car}`, "Use o padrão ABC1D23.");
+          else if (plates.has(plate))
+            fail(`${key}.placa`, `placa do ${car}`, "Placa repetida em outro carro do lote.");
+          plates.add(plate);
+          if (!unit.quilometragem)
+            fail(`${key}.quilometragem`, `quilometragem do ${car}`, "Preencha este campo.", true);
+          else if (!/^\d+$/.test(unit.quilometragem))
+            fail(`${key}.quilometragem`, `quilometragem do ${car}`, "Informe um número válido.");
         }
       }
     }
-    if (current === 8 && asLot && lotUnits.length + existing.length < 2)
-      return "O lote precisa ter ao menos 2 carros.";
     if (current === 7) {
-      for (const item of optionalTechnical) {
-        const problem = checkField(item, `${tipo}.`);
-        if (problem) return problem;
-      }
-      if (values.descricao?.length > 10000)
-        return "A descrição deve ter até 10.000 caracteres.";
+      for (const item of optionalTechnical) checkField(item, `${tipo}.`);
+      checkField(descriptionField);
+      if (tipo === "BARCO")
+        for (const [index, motor] of motors.entries())
+          for (const item of motorFields)
+            checkField(
+              item,
+              "",
+              motor[item.key] || "",
+              `motor.${index}.${item.key}`,
+              `${shortName(item.label)} do motor ${index + 1}`,
+            );
     }
+    if (current === 8 && asLot && lotUnits.length + existing.length < 2)
+      check.general.push("O lote precisa ter ao menos 2 carros.");
+    return check;
+  }
+  // Recalculadas a cada mudança: trocar a condição ou o tipo muda o que cada etapa exige.
+  const checks = stages.map((_, index) => validate(index));
+  const pendingStages = checks.map(
+    (check, index) =>
+      index <= furthest &&
+      (revealed.has(index)
+        ? errorCount(check) > 0
+        : Object.keys(check.fields).some(
+            (key) => !check.missing.has(key) && touched.has(key),
+          )),
+  );
+  const pendingNames = stages.filter((_, index) => pendingStages[index]);
+  /** Erro visível de um campo: vazio só numa etapa revelada; formato depois de sair do campo. */
+  function shownError(key: string) {
+    // As páginas vizinhas também ficam montadas, então o erro é procurado na etapa dona do campo.
+    const index = checks.findIndex((check) => key in check.fields);
+    if (index < 0) return undefined;
+    const check = checks[index];
+    if (revealed.has(index)) return check.fields[key];
+    return !check.missing.has(key) && touched.has(key)
+      ? check.fields[key]
+      : undefined;
+  }
+  /** Erro, foco e saída de um campo, para AdField e TextField. */
+  function fieldProps(key: string) {
+    return {
+      error: shownError(key),
+      // Ao voltar a um campo sem erro, um novo erro só aparece quando ele perder o foco de novo.
+      onFocus: () => {
+        if (!checks.some((check) => key in check.fields))
+          setTouched((current) => {
+            if (!current.has(key)) return current;
+            const next = new Set(current);
+            next.delete(key);
+            return next;
+          });
+      },
+      onBlur: () =>
+        setTouched((current) =>
+          current.has(key) ? current : new Set(current).add(key),
+        ),
+    };
+  }
+  /** Guarda a View de cada campo para rolar até ele. */
+  function anchor(key: string) {
+    return (node: ViewInstance | null) => {
+      if (!node) return;
+      anchors.current.set(key, node);
+      return () => {
+        anchors.current.delete(key);
+      };
+    };
+  }
+  function scrollToField(key: string | null) {
+    scrollTarget.current = key;
+    setScrollRequest((current) => current + 1);
+  }
+  // A posição é medida depois que a etapa de destino foi montada, relativa ao conteúdo da rolagem.
+  useLayoutEffect(() => {
+    const key = scrollTarget.current;
+    if (key === undefined) return;
+    scrollTarget.current = undefined;
+    const node = key ? anchors.current.get(key) : undefined;
+    const scroll = pageScrolls.current.get(stage);
+    const content = scroll?.getInnerViewRef();
+    if (node && content)
+      node.measureLayout(content, (_x, y) =>
+        scroll?.scrollTo({
+          y: Math.max(0, y - space.lg),
+          animated: !reduceMotion,
+        }),
+      );
+    else scroll?.scrollTo({ y: 0, animated: !reduceMotion });
+    // Só um novo pedido de rolagem dispara de novo; a etapa é lida no mesmo commit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollRequest, reduceMotion]);
+  function reveal(indexes: number[]) {
+    setRevealed((current) =>
+      indexes.every((index) => current.has(index))
+        ? current
+        : new Set([...current, ...indexes]),
+    );
+  }
+  /** Mostra o resumo no rodapé. O VoiceOver não lê live regions, então no iPhone o resumo é anunciado. */
+  function showSummary(text: string) {
+    setError(text);
+    if (Platform.OS === "ios") AccessibilityInfo.announceForAccessibility(text);
+  }
+  function waitMessage() {
+    if (fipeType && edition.isPending) return "Aguarde a tabela FIPE carregar.";
+    if (syncingFipe) return "Aguarde a atualização da referência FIPE.";
     return "";
   }
   function advance() {
     Keyboard.dismiss();
-    const problem = validate(stage);
-    if (problem) {
-      setError(problem);
+    const last = stages.length - 1;
+    if (stage === 1 || stage === last) {
+      const wait = waitMessage();
+      if (wait) {
+        setError(wait);
+        return;
+      }
+    }
+    if (stage < lockedStages && errorCount(checks[stage])) {
+      reveal([stage]);
+      showSummary(summarize(checks[stage]));
+      const first = Object.keys(checks[stage].fields)[0];
+      if (first) scrollToField(first);
       return;
     }
     setError("");
-    if (stage < stages.length - 1) {
-      setStage(stage + 1);
-      scrollRef.current?.scrollTo({ y: 0, animated: false });
-    } else {
-      const pending = stages.map((_, index) => validate(index)).find(Boolean);
-      if (pending) setError(pending);
-      else create.mutate();
+    if (stage < last) {
+      // Da etapa 2 em diante avança mesmo incompleta; o que falta fica marcado na barra.
+      reveal([stage]);
+      goTo(stage + 1);
+      return;
     }
+    const target = checks.findIndex((check) => errorCount(check) > 0);
+    if (target < 0) {
+      create.mutate();
+      return;
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    reveal(stages.map((_, index) => index));
+    goTo(target);
+    showSummary(summarize(checks[target]));
+    scrollToField(Object.keys(checks[target].fields)[0] ?? null);
   }
-  if (!signedIn)
-    return (
-      <View
-        style={[styles.root, { backgroundColor: colors.bg, padding: space.lg }]}
-      >
-        <AppText variant="display">Anuncie seu veículo</AppText>
-        <AppText color="muted">Entre na sua conta para começar.</AppText>
-        <Button
-          label="Entrar para anunciar"
-          onPress={() => router.push("/entrar")}
-        />
-      </View>
+  // Lida ao fim de cada transição, quando o commit da troca de etapa já aconteceu.
+  const stageRef = useRef(stage);
+  useEffect(() => {
+    stageRef.current = stage;
+  }, [stage]);
+  /** Ao fim da transição, as páginas fora da tela voltam ao topo: a próxima etapa sempre chega pelo começo. */
+  function resetHiddenPages() {
+    for (const [index, scroll] of pageScrolls.current)
+      if (index !== stageRef.current) scroll.scrollTo({ y: 0, animated: false });
+  }
+  /** Troca de etapa pelos botões: desliza para a vizinha; um salto maior entra com um esmaecer curto. */
+  function goTo(target: number) {
+    Keyboard.dismiss();
+    if (Math.abs(target - stage) > 1) {
+      // As etapas do meio não estão montadas: em vez de atravessá-las, a página nova surge no lugar.
+      jumpFrom.current = stage;
+      pagerFade.set(0);
+    } else
+      position.set(
+        withTiming(
+          target,
+          {
+            duration: 300,
+            easing: motion.easeInOut,
+            reduceMotion: ReduceMotion.System,
+          },
+          (finished) => {
+            if (finished) scheduleOnRN(resetHiddenPages);
+          },
+        ),
+      );
+    setStage(target);
+    setFurthest((current) => Math.max(current, target));
+  }
+  useLayoutEffect(() => {
+    const from = jumpFrom.current;
+    if (from === undefined) return;
+    jumpFrom.current = undefined;
+    const direction = stage > from ? 1 : -1;
+    position.set(stage - direction * 0.15);
+    position.set(
+      withTiming(stage, {
+        duration: 300,
+        easing: motion.easeOut,
+        reduceMotion: ReduceMotion.System,
+      }),
     );
-  if (!reviewed && !created)
-    return (
-      <AdvertiserReview
-        profile={profile.data}
-        loading={profile.isPending}
-        error={profile.isError ? profile.error.message : null}
-        onRetry={() => profile.refetch()}
-        onContinue={() => setReviewed(true)}
-      />
+    pagerFade.set(
+      withTiming(
+        1,
+        {
+          duration: 200,
+          easing: motion.easeOut,
+          reduceMotion: ReduceMotion.System,
+        },
+        (finished) => {
+          if (finished) scheduleOnRN(resetHiddenPages);
+        },
+      ),
     );
-  if (created)
-    return (
-      <View
-        style={[styles.root, styles.success, { backgroundColor: colors.bg }]}
-      >
-        <AppText variant="display">
-          {asLot ? "Lote criado" : "Anúncio criado"}
-        </AppText>
-        <AppText color="muted">
-          {asLot
-            ? "Os carros do lote foram salvos na PHC Auto."
-            : "Seu veículo foi salvo na PHC Auto."}{" "}
-          As fotos passam por uma análise automática, com a placa borrada, e
-          aparecem {asLot ? "nos carros" : "no anúncio"} logo depois.
-        </AppText>
-        {createdVideoNote ? (
-          <AppText color="muted">{createdVideoNote}</AppText>
-        ) : null}
-        {warning ? (
-          <Notice
-            tone="error"
-            title="Algumas mídias não foram enviadas"
-            message={`${warning} O anúncio foi salvo sem elas.`}
-          />
-        ) : null}
-        <Button
-          label="Meus anúncios"
-          onPress={() => router.replace("/meus-anuncios")}
-        />
-      </View>
+  }, [stage, position, pagerFade]);
+  /** O arraste já levou a página até o destino; aqui só se registra a troca. */
+  function onSwiped(from: number, to: number) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (swipeLearned === false) {
+      setSwipeLearned(true);
+      secureStorage.set(swipeLearnedKey, "1").catch(() => undefined);
+    }
+    Keyboard.dismiss();
+    setError("");
+    if (to > from) reveal([from]);
+    setStage(to);
+    setFurthest((current) => Math.max(current, to));
+  }
+  // Enquanto o gesto não foi aprendido, a página espia a próxima etapa uma vez ao abrir o formulário:
+  // mostra que existe outra página ao lado e volta com mola. Com "reduzir movimento", fica só a dica em texto.
+  const showPeek = reviewed && !created && swipeLearned === false && !reduceMotion;
+  useEffect(() => {
+    if (!showPeek) return;
+    const timer = setTimeout(() => {
+      const from = stageRef.current;
+      if (from >= lastStage) return;
+      position.set(
+        withSequence(
+          withTiming(from + 0.14, { duration: 420, easing: motion.easeInOut }),
+          withSpring(from, { duration: 500, dampingRatio: 0.7 }),
+        ),
+      );
+    }, 900);
+    return () => clearTimeout(timer);
+  }, [showPeek, position]);
+  // Nas etapas 0 e 1 incompletas, o arraste para frente cede e volta, e o rodapé diz o que falta.
+  const forwardOpen =
+    stage < lastStage &&
+    !(
+      stage < lockedStages &&
+      (errorCount(checks[stage]) > 0 || (stage === 1 && waitMessage() !== ""))
     );
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={[styles.root, { backgroundColor: colors.bg }]}
-    >
-      <ScrollView
-        ref={scrollRef}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[styles.content, { paddingBottom: space.xl }]}
-      >
-        <AppText variant="overline" color="red">
-          ANUNCIAR · {stage + 1} DE {stages.length}
-        </AppText>
-        <AppText variant="display">{stages[stage]}</AppText>
-        <View style={styles.progress}>
-          {stages.map((name, i) => (
-            <View
-              key={name}
-              style={[
-                styles.progressPart,
-                { backgroundColor: i <= stage ? colors.red : colors.border },
-              ]}
-            />
-          ))}
-        </View>
-        {stage === 0 ? (
+  useEffect(() => {
+    canForward.set(forwardOpen);
+    canBack.set(stage > 0);
+  }, [forwardOpen, stage, canForward, canBack]);
+  // DIAGNÓSTICO temporário.
+  function swipeLog(message: string) {
+    console.log(`[deslize] etapa=${stageRef.current} ${message}`);
+  }
+  const pan = usePanGesture({
+    enabled: !create.isPending,
+    // Vence o eixo que andar primeiro. Numa página que rola, o ScrollView nativo toma o toque com
+    // 8 dp na vertical (touch slop do Android) e cancela este arraste; ativar com os mesmos 8 dp na
+    // horizontal faz o deslize lateral, mesmo inclinado, ganhar da rolagem em qualquer ponto da página.
+    activeOffsetX: [-8, 8],
+    failOffsetY: [-10, 10],
+    // DIAGNÓSTICO temporário do arraste em páginas que rolam.
+    onBegin: (event) => {
+      "worklet";
+      scheduleOnRN(swipeLog, `begin x=${Math.round(event.x)} y=${Math.round(event.y)}`);
+    },
+    onFinalize: (event) => {
+      "worklet";
+      scheduleOnRN(
+        swipeLog,
+        `finalize canceled=${event.canceled}`,
+      );
+    },
+    onActivate: (event) => {
+      "worklet";
+      scheduleOnRN(swipeLog, `activate dx=${Math.round(event.translationX)} dy=${Math.round(event.translationY)}`);
+      cancelAnimation(position);
+      dragStart.set(position.get());
+      dragOrigin.set(event.translationX);
+    },
+    onUpdate: (event) => {
+      "worklet";
+      const width = pageWidth.get();
+      if (!width) return;
+      const base = Math.round(dragStart.get());
+      const min = canBack.get() ? base - 1 : base;
+      const max = canForward.get() ? base + 1 : base;
+      const next =
+        dragStart.get() - (event.translationX - dragOrigin.get()) / width;
+      position.set(
+        next > max
+          ? max + resist(next - max)
+          : next < min
+            ? min - resist(min - next)
+            : next,
+      );
+    },
+    onDeactivate: (event) => {
+      "worklet";
+      const width = pageWidth.get();
+      const base = Math.round(dragStart.get());
+      const moved = position.get() - base;
+      // Velocidade em páginas por segundo: um gesto rápido basta, mesmo curto.
+      const velocity = width ? -event.velocityX / width : 0;
+      let target = base;
+      if (!event.canceled) {
+        if (
+          canForward.get() &&
+          moved > 0 &&
+          (velocity > 0.6 || (moved > 0.4 && velocity > -0.6))
+        )
+          target = base + 1;
+        else if (
+          canBack.get() &&
+          moved < 0 &&
+          (velocity < -0.6 || (moved < -0.4 && velocity < 0.6))
+        )
+          target = base - 1;
+      }
+      position.set(
+        withSpring(
+          target,
+          target === base
+            ? {
+                duration: 400,
+                dampingRatio: 0.8,
+                velocity,
+                reduceMotion: ReduceMotion.System,
+              }
+            : {
+                duration: 380,
+                dampingRatio: 1,
+                velocity,
+                reduceMotion: ReduceMotion.System,
+              },
+          (finished) => {
+            "worklet";
+            if (finished) scheduleOnRN(resetHiddenPages);
+          },
+        ),
+      );
+      if (target !== base) scheduleOnRN(onSwiped, base, target);
+      else if (!canForward.get() && moved > 0.08 && base < lastStage)
+        scheduleOnRN(advance);
+    },
+  });
+  function pageScroll(index: number) {
+    return (node: ScrollViewInstance | null) => {
+      if (!node) return;
+      pageScrolls.current.set(index, node);
+      return () => {
+        pageScrolls.current.delete(index);
+      };
+    };
+  }
+  /** Corpo de uma etapa. As páginas vizinhas também são montadas, então nada aqui depende de `stage`. */
+  function stageBody(index: number) {
+    return (
+      <>
+        {index === 0 ? (
           <View style={styles.section}>
             <AppText variant="heading">O que você vai anunciar?</AppText>
             {profile.isError ? (
@@ -890,7 +1325,7 @@ export function Announce() {
             {fipeStatus}
           </View>
         ) : null}
-        {stage === 1 ? (
+        {index === 1 ? (
           <View style={styles.section}>
             {fipeStatus}
             {fipeType && edition.data ? (
@@ -943,29 +1378,14 @@ export function Announce() {
                     onAction={() => edition.refetch()}
                   />
                 ) : null}
-                {field({
-                  key: "fabricante",
-                  label: "Marca / fabricante",
-                  required: true,
-                  maxLength: 100,
-                })}
-                {field({
-                  key: "modelo",
-                  label: "Modelo",
-                  required: true,
-                  maxLength: 250,
-                })}
-                {field({
-                  key: "anoModelo",
-                  label: "Ano do modelo",
-                  required: true,
-                  kind: "number",
-                })}
+                {field(brandField)}
+                {field(modelField)}
+                {field(modelYearField)}
               </View>
             )}
           </View>
         ) : null}
-        {stage === 2 ? (
+        {index === 2 ? (
           <View style={styles.section}>
             <AppText color="muted">
               Só os dados necessários para identificar o veículo.
@@ -979,43 +1399,21 @@ export function Announce() {
                 onAction={() => catalog.refetch()}
               />
             ) : null}
-            {field({
-              key: "anoFabricacao",
-              label: "Ano de fabricação",
-              required: true,
-              kind: "number",
-            })}
-            {fipeType && edition.data && values.condicao === "ZERO_KM"
-              ? field({
-                  key: "anoModelo",
-                  label: "Ano do modelo",
-                  required: true,
-                  kind: "number",
-                })
-              : null}
-            {field({ key: "cor", label: "Cor", required: true, maxLength: 60 })}
+            {field(fabricationYearField)}
+            {modelYearInMain ? field(modelYearField) : null}
+            {field(colorField)}
             {requiredMain.map((item) => field(item, `${tipo}.`))}
           </View>
         ) : null}
-        {stage === 3 ? (
+        {index === 3 ? (
           <View style={styles.section}>
             <AppText color="muted">Histórico e documentos do veículo.</AppText>
-            {field({
-              key: "historicoLeilao",
-              label: "Passou por leilão?",
-              kind: "boolean",
-              required: true,
-            })}
-            {field({
-              key: "historicoSinistro",
-              label: "Teve sinistro?",
-              kind: "boolean",
-              required: true,
-            })}
+            {field(auctionField)}
+            {field(accidentField)}
             {requiredDocuments.map((item) => field(item, `${tipo}.`))}
           </View>
         ) : null}
-        {stage === 4 ? (
+        {index === 4 ? (
           <View style={styles.section}>
             <AppText color="muted">
               Informe onde o veículo está disponível.
@@ -1043,12 +1441,27 @@ export function Announce() {
               loading={cepBusy}
               onPress={lookupCep}
             />
+            {/* Estado e cidade lado a lado, como num endereço; com fonte grande, quebram em duas linhas. */}
+            <View style={styles.row}>
+              {addressFields
+                .filter((item) => item.key === "uf" || item.key === "cidade")
+                .map((item) =>
+                  field(
+                    item,
+                    "endereco.",
+                    item.key === "uf" ? styles.stateField : styles.cityField,
+                  ),
+                )}
+            </View>
             {addressFields
-              .filter((item) => item.required && item.key !== "cep")
+              .filter(
+                (item) =>
+                  item.required && !["cep", "uf", "cidade"].includes(item.key),
+              )
               .map((item) => field(item, "endereco."))}
           </View>
         ) : null}
-        {stage === 5 ? (
+        {index === 5 ? (
           <View style={styles.section}>
             <AppText variant="heading">Fotos ({photos.length}/8)</AppText>
             <AppText color="muted">
@@ -1098,14 +1511,9 @@ export function Announce() {
             ))}
           </View>
         ) : null}
-        {stage === 6 ? (
+        {index === 6 ? (
           <View style={styles.section}>
-            {field({
-              key: "titulo",
-              label: "Título do anúncio",
-              required: true,
-              maxLength: 180,
-            })}
+            {field(titleField)}
             <AppText variant="label">Preço</AppText>
             {asLot ? (
               <AppText color="muted">
@@ -1117,14 +1525,7 @@ export function Announce() {
                 { value: "SOB_CONSULTA", label: "Sob consulta" },
               ])
             )}
-            {values.tipoPreco === "FIXO"
-              ? field({
-                  key: "precoReais",
-                  label: "Preço (R$)",
-                  required: true,
-                  mask: "money",
-                })
-              : null}
+            {values.tipoPreco === "FIXO" ? field(priceField) : null}
             <AppText variant="heading">
               Como compradores podem falar com você?
             </AppText>
@@ -1155,48 +1556,48 @@ export function Announce() {
                     style={[styles.unit, { borderColor: colors.border }]}
                   >
                     <AppText variant="bodyStrong">Carro {i + 1}</AppText>
-                    <TextField
-                      label="Cor"
-                      value={unit.cor}
-                      onChangeText={(cor) =>
-                        setLotUnits((current) =>
-                          current.map((row, index) =>
-                            index === i ? { ...row, cor } : row,
-                          ),
-                        )
-                      }
-                    />
+                    <View ref={anchor(`lote.${unit.key}.cor`)}>
+                      <TextField
+                        label="Cor"
+                        value={unit.cor}
+                        onChangeText={(cor) => editLotUnit(i, { cor })}
+                        {...fieldProps(`lote.${unit.key}.cor`)}
+                      />
+                    </View>
                     {values.condicao !== "ZERO_KM" ? (
                       <>
-                        <TextField
-                          label="Placa"
-                          value={unit.placa}
-                          maxLength={7}
-                          autoCapitalize="characters"
-                          autoCorrect={false}
-                          onChangeText={(typed) => {
-                            const placa = cleanMasked("plate", typed);
-                            setLotUnits((current) =>
-                              current.map((row, index) =>
-                                index === i ? { ...row, placa } : row,
-                              ),
-                            );
-                          }}
-                        />
-                        <TextField
-                          label="Quilometragem"
-                          value={displayMasked("thousands", unit.quilometragem)}
-                          keyboardType="number-pad"
-                          maxLength={maskInput.thousands.maxLength}
-                          onChangeText={(typed) => {
-                            const quilometragem = cleanMasked("thousands", typed);
-                            setLotUnits((current) =>
-                              current.map((row, index) =>
-                                index === i ? { ...row, quilometragem } : row,
-                              ),
-                            );
-                          }}
-                        />
+                        <View ref={anchor(`lote.${unit.key}.placa`)}>
+                          <TextField
+                            label="Placa"
+                            value={unit.placa}
+                            maxLength={7}
+                            autoCapitalize="characters"
+                            autoCorrect={false}
+                            onChangeText={(typed) =>
+                              editLotUnit(i, {
+                                placa: cleanMasked("plate", typed),
+                              })
+                            }
+                            {...fieldProps(`lote.${unit.key}.placa`)}
+                          />
+                        </View>
+                        <View ref={anchor(`lote.${unit.key}.quilometragem`)}>
+                          <TextField
+                            label="Quilometragem"
+                            value={displayMasked(
+                              "thousands",
+                              unit.quilometragem,
+                            )}
+                            keyboardType="number-pad"
+                            maxLength={maskInput.thousands.maxLength}
+                            onChangeText={(typed) =>
+                              editLotUnit(i, {
+                                quilometragem: cleanMasked("thousands", typed),
+                              })
+                            }
+                            {...fieldProps(`lote.${unit.key}.quilometragem`)}
+                          />
+                        </View>
                       </>
                     ) : null}
                     <Button
@@ -1222,7 +1623,7 @@ export function Announce() {
             ) : null}
           </View>
         ) : null}
-        {stage === 7 ? (
+        {index === 7 ? (
           <View style={styles.section}>
             <AppText color="muted">
               Estes dados ajudam a detalhar o anúncio. Você pode continuar sem
@@ -1240,12 +1641,7 @@ export function Announce() {
             {addressFields
               .filter((item) => !item.required)
               .map((item) => field(item, "endereco."))}
-            {field({
-              key: "descricao",
-              label: "Descrição",
-              maxLength: 10000,
-              multiline: true,
-            })}
+            {field(descriptionField)}
             {field({
               key: "aceitaTroca",
               label: "Aceita troca?",
@@ -1261,18 +1657,22 @@ export function Announce() {
                   >
                     <AppText variant="label">Motor {i + 1}</AppText>
                     {motorFields.map((item) => (
-                      <TextField
+                      <View
                         key={item.key}
-                        label={item.label}
-                        value={motor[item.key] || ""}
-                        onChangeText={(value) =>
-                          setMotors((current) =>
-                            current.map((row, index) =>
-                              index === i ? { ...row, [item.key]: value } : row,
-                            ),
-                          )
-                        }
-                      />
+                        ref={anchor(`motor.${i}.${item.key}`)}
+                      >
+                        <TextField
+                          label={item.label}
+                          value={motor[item.key] || ""}
+                          keyboardType={
+                            item.kind === "number" ? "decimal-pad" : "default"
+                          }
+                          onChangeText={(value) =>
+                            editMotor(i, item.key, value)
+                          }
+                          {...fieldProps(`motor.${i}.${item.key}`)}
+                        />
+                      </View>
                     ))}
                     <Button
                       label={`Remover motor ${i + 1}`}
@@ -1449,7 +1849,7 @@ export function Announce() {
             ) : null}
           </View>
         ) : null}
-        {stage === 8 ? (
+        {index === 8 ? (
           <View style={styles.section}>
             <AppText color="muted">Confira os dados antes de salvar.</AppText>
             {qualityTips(true)}
@@ -1522,7 +1922,159 @@ export function Announce() {
             )}
           </View>
         ) : null}
-      </ScrollView>
+      </>
+    );
+  }
+  if (!signedIn)
+    return (
+      <View
+        style={[styles.root, { backgroundColor: colors.bg, padding: space.lg }]}
+      >
+        <AppText variant="display">Anuncie seu veículo</AppText>
+        <AppText color="muted">Entre na sua conta para começar.</AppText>
+        <Button
+          label="Entrar para anunciar"
+          onPress={() => router.push("/entrar")}
+        />
+      </View>
+    );
+  if (!reviewed && !created)
+    return (
+      <AdvertiserReview
+        profile={profile.data}
+        loading={profile.isPending}
+        error={profile.isError ? profile.error.message : null}
+        onRetry={() => profile.refetch()}
+        onContinue={() => setReviewed(true)}
+      />
+    );
+  if (created)
+    return (
+      <View
+        style={[styles.root, styles.success, { backgroundColor: colors.bg }]}
+      >
+        <AppText variant="display">
+          {asLot ? "Lote criado" : "Anúncio criado"}
+        </AppText>
+        <AppText color="muted">
+          {asLot
+            ? "Os carros do lote foram salvos na PHC Auto."
+            : "Seu veículo foi salvo na PHC Auto."}{" "}
+          As fotos passam por uma análise automática, com a placa borrada, e
+          aparecem {asLot ? "nos carros" : "no anúncio"} logo depois.
+        </AppText>
+        {createdVideoNote ? (
+          <AppText color="muted">{createdVideoNote}</AppText>
+        ) : null}
+        {warning ? (
+          <Notice
+            tone="error"
+            title="Algumas mídias não foram enviadas"
+            message={`${warning} O anúncio foi salvo sem elas.`}
+          />
+        ) : null}
+        <Button
+          label="Meus anúncios"
+          onPress={() => router.replace("/meus-anuncios")}
+        />
+      </View>
+    );
+  return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      style={[styles.root, { backgroundColor: colors.bg }]}
+    >
+      <View style={styles.header}>
+        <View style={styles.headerRow}>
+          <AppText variant="overline" color="red" style={styles.flex}>
+            ANUNCIAR · {stage + 1} DE {stages.length}
+          </AppText>
+          {/* Fica sempre à vista: quem pulou a espiada da primeira vez ainda descobre o gesto.
+              Quem usa leitor de tela troca de etapa pelos botões; a dica do gesto só confundiria. */}
+          <View
+            style={styles.swipeHint}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            <ChevronsLeftRight size={16} color={colors.muted} strokeWidth={2.2} />
+            <AppText variant="caption" color="muted" style={styles.shrink}>
+              Deslize para trocar de etapa
+            </AppText>
+          </View>
+        </View>
+        <View
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel={`Etapa ${stage + 1} de ${stages.length}.${
+            pendingNames.length ? ` Pendentes: ${pendingNames.join(", ")}.` : ""
+          }`}
+          style={styles.progressBlock}
+        >
+          <View style={styles.progress}>
+            {stages.map((name, i) => (
+              <ProgressSegment
+                key={name}
+                index={i}
+                position={position}
+                pending={pendingStages[i]}
+              />
+            ))}
+          </View>
+          {pendingNames.length ? (
+            <View style={styles.pendingLegend}>
+              <View
+                style={[styles.legendDot, { backgroundColor: colors.pending }]}
+              />
+              <AppText variant="caption" color="muted" style={styles.flex}>
+                Pendências: {pendingNames.join(", ")}
+              </AppText>
+            </View>
+          ) : null}
+        </View>
+      </View>
+      <View
+        style={styles.pager}
+        onLayout={(event) => pageWidth.set(event.nativeEvent.layout.width)}
+      >
+        <GestureDetector gesture={pan}>
+          <Animated.View style={[styles.pager, pagerStyle]}>
+            {[stage - 1, stage, stage + 1]
+              .filter((index) => index >= 0 && index <= lastStage)
+              .map((index) => (
+                <StagePage
+                  key={index}
+                  index={index}
+                  position={position}
+                  width={pageWidth}
+                  current={index === stage}
+                >
+                  <ScrollView
+                    ref={pageScroll(index)}
+                    // A rolagem espera o arraste horizontal desistir (10 pt na vertical), senão uma
+                    // página já rolada prende o toque e não deixa trocar de etapa.
+                    requireToFail={pan}
+                    keyboardShouldPersistTaps="handled"
+                    // DIAGNÓSTICO temporário.
+                    onScrollBeginDrag={() => swipeLog(`scroll-drag pagina=${index}`)}
+                    onMomentumScrollEnd={() => swipeLog(`scroll-momentum-fim pagina=${index}`)}
+                    contentContainerStyle={styles.page}
+                  >
+                    <AppText variant="display">{stages[index]}</AppText>
+                    {revealed.has(index)
+                      ? checks[index].general
+                          // O mesmo texto já está no rodapé depois de "Continuar" ou "Criar anúncio".
+                          .filter((text) => text !== error)
+                          .map((text) => (
+                            <Notice key={text} tone="error" message={text} />
+                          ))
+                      : null}
+                    {stageBody(index)}
+                  </ScrollView>
+                </StagePage>
+              ))}
+          </Animated.View>
+        </GestureDetector>
+      </View>
       <View
         style={[
           styles.footer,
@@ -1565,10 +2117,8 @@ export function Announce() {
               disabled={create.isPending}
               style={styles.backButton}
               onPress={() => {
-                Keyboard.dismiss();
                 setError("");
-                setStage((current) => current - 1);
-                scrollRef.current?.scrollTo({ y: 0, animated: false });
+                goTo(stage - 1);
               }}
             />
           ) : null}
@@ -1591,11 +2141,27 @@ export function Announce() {
 }
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: { padding: space.lg, gap: space.lg },
+  header: {
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
+    paddingBottom: space.xs,
+    gap: space.sm,
+  },
+  pager: { flex: 1, overflow: "hidden" },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: space.sm },
+  swipeHint: { flexDirection: "row", alignItems: "center", gap: space.xs, flexShrink: 1 },
+  page: {
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
+    paddingBottom: space.xl,
+    gap: space.lg,
+  },
   section: { gap: space.md },
   field: { gap: space.sm },
+  progressBlock: { gap: space.sm },
   progress: { flexDirection: "row", gap: space.xs },
-  progressPart: { flex: 1, height: 4, borderRadius: 2 },
+  pendingLegend: { flexDirection: "row", alignItems: "center", gap: space.sm },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
   footerRow: { flexDirection: "row", gap: space.sm },
   upload: { gap: space.sm },
   uploadTrack: { height: 4, borderRadius: 2, overflow: "hidden" },
@@ -1643,6 +2209,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   flex: { flex: 1 },
+  shrink: { flexShrink: 1 },
+  row: { flexDirection: "row", flexWrap: "wrap", gap: space.md },
+  stateField: { flexGrow: 1, flexBasis: 88 },
+  cityField: { flexGrow: 3, flexBasis: 180 },
   unit: {
     borderWidth: 1,
     borderRadius: radius.md,

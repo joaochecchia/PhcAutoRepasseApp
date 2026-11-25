@@ -47,7 +47,8 @@ export function LocationSheet({ visible, current, signedIn, onApply, onClose }: 
     setLocating(true);
     setError('');
     try {
-      apply(await deviceLocation());
+      const location = await deviceLocation();
+      if (location) apply(location);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível obter sua localização. Tente de novo.');
     } finally {

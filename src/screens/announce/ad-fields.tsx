@@ -1,4 +1,6 @@
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+// O ScrollView do Gesture Handler disputa o arraste horizontal com o paginador de etapas e ganha.
+import { ScrollView } from "react-native-gesture-handler";
 
 import type { Catalog } from "@/api/announce";
 import { AppText } from "@/components/app-text";
@@ -62,6 +64,8 @@ export function suggestionsFor(
 /**
  * Campo do formulário de anúncio: Sim/Não em pílulas, ou texto com máscara e sugestões do catálogo.
  * `values[key]` guarda o valor limpo (sem pontos), `onChange` recebe o mesmo formato.
+ * `error` aparece embaixo do campo; quem chama decide quando mostrá-lo.
+ * `inline` põe Sim/Não na mesma linha do rótulo, para a etapa caber na tela.
  */
 export function AdField({
   item,
@@ -69,12 +73,20 @@ export function AdField({
   values,
   suggestions = [],
   onChange,
+  error,
+  onFocus,
+  onBlur,
+  inline = false,
 }: {
   item: Field;
   prefix?: string;
   values: Record<string, string>;
   suggestions?: string[];
   onChange: (key: string, value: string) => void;
+  error?: string;
+  onFocus?: () => void;
+  onBlur?: () => void;
+  inline?: boolean;
 }) {
   const { colors } = useTheme();
   const key = `${prefix}${item.key}`;
@@ -82,8 +94,10 @@ export function AdField({
   const current = values[key] || "";
   if (item.kind === "boolean")
     return (
-      <View style={styles.field}>
-        <AppText variant="label">{label}</AppText>
+      <View style={inline ? styles.inline : styles.field}>
+        <AppText variant="label" style={inline ? styles.inlineLabel : undefined}>
+          {label}
+        </AppText>
         <ChoiceRow
           value={current}
           options={[
@@ -92,6 +106,16 @@ export function AdField({
           ]}
           onChange={(value) => onChange(key, value)}
         />
+        {error ? (
+          <AppText
+            variant="caption"
+            color="red"
+            accessibilityLiveRegion="polite"
+            style={inline ? styles.inlineError : undefined}
+          >
+            {error}
+          </AppText>
+        ) : null}
       </View>
     );
   const filtered = suggestions.filter(
@@ -120,6 +144,9 @@ export function AdField({
         style={item.multiline ? styles.multiline : undefined}
         autoCapitalize={mask === "plate" ? "characters" : undefined}
         autoCorrect={mask ? false : undefined}
+        error={error}
+        onFocus={onFocus}
+        onBlur={onBlur}
         onChangeText={(value) =>
           onChange(key, mask ? cleanMasked(mask, value) : value)
         }
@@ -150,6 +177,17 @@ export function AdField({
 
 const styles = StyleSheet.create({
   field: { gap: space.sm },
+  // Com fonte grande ou rótulo longo, Sim/Não desce para a linha de baixo.
+  inline: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    columnGap: space.md,
+    rowGap: space.sm,
+  },
+  inlineLabel: { flexGrow: 1, flexShrink: 1, flexBasis: 140 },
+  inlineError: { width: "100%" },
   multiline: { minHeight: 120, textAlignVertical: "top" },
   choices: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
   suggestion: {

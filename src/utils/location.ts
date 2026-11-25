@@ -1,5 +1,7 @@
 import * as Location from 'expo-location';
 
+import { ensureLocationPermission } from '@/utils/permission';
+
 /** Onde procurar (ModoLocalizacaoBusca do backend). O raio é decidido pelo servidor e volta em raioKmAplicado. */
 export type SearchLocation =
   | { modo: 'BRASIL' }
@@ -28,11 +30,12 @@ export function locationParams(location: SearchLocation | undefined): Record<str
   return { modoLocalizacao: 'ENDERECO_CADASTRADO' };
 }
 
-/** Posição aproximada do aparelho (sem precisão alta: a busca é por região). Pede permissão na hora do uso. */
-export async function deviceLocation(): Promise<SearchLocation> {
-  const permission = await Location.requestForegroundPermissionsAsync();
-  if (!permission.granted)
-    throw new Error('A localização não foi autorizada. Permita nas configurações para buscar perto de você.');
+/**
+ * Posição aproximada do aparelho (sem precisão alta: a busca é por região). Pede permissão na hora do uso, com a
+ * explicação do app antes do pedido do sistema. Devolve null quando a pessoa não autoriza.
+ */
+export async function deviceLocation(): Promise<SearchLocation | null> {
+  if (!(await ensureLocationPermission())) return null;
   const position =
     (await Location.getLastKnownPositionAsync({ maxAge: 10 * 60_000 })) ??
     (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));

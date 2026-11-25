@@ -20,6 +20,8 @@ export const palette = {
     dealBorder: '#d8ebdf',
     skeleton: '#ececef',
     scrim: 'rgba(18,19,21,0.45)',
+    /** Marca de etapa com pendência no formulário: âmbar, para não se confundir com o vermelho de ação. */
+    pending: '#b45309',
   },
   dark: {
     bg: '#121315',
@@ -39,6 +41,7 @@ export const palette = {
     dealBorder: '#294b39',
     skeleton: '#2a2b30',
     scrim: 'rgba(0,0,0,0.6)',
+    pending: '#f5b544',
   },
 } as const;
 
