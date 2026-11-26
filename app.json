@@ -94,6 +94,12 @@
         "projectId": "6839a657-0b32-4290-b3e4-cff9da592fe4"
       }
     },
-    "owner": "joaochecchia"
+    "owner": "joaochecchia",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/6839a657-0b32-4290-b3e4-cff9da592fe4"
+    }
   }
 }
